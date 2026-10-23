@@ -59,7 +59,7 @@ class RecordingSession(
         sessionJob?.takeIf { it.isActive }?.let { return it }
         return scope.launch {
             val settings = settingsRepository.settings.first()
-            camera.configure(settings.cameraFacing, settings.videoQuality, settings.separateCameraFiles)
+            camera.configure(settings.cameraSetup)
             if (!camera.state.value.isReady) {
                 _events.tryEmit(RecorderEvent.CameraError(camera.state.value.error))
                 return@launch

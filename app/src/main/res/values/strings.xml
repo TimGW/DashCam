@@ -112,6 +112,9 @@
     <string name="settings_camera">Camera</string>
     <string name="settings_separate_camera_files">Save as separate videos</string>
     <string name="settings_separate_camera_files_summary">With both cameras, save the front camera as its own video instead of an inset</string>
+    <string name="settings_aspect_ratio">Aspect ratio</string>
+    <string name="settings_wide_angle">Wide angle</string>
+    <string name="settings_wide_angle_summary">Start at the widest zoom, using the ultra-wide lens if your phone has one</string>
     <string name="settings_audio">Record audio</string>
     <string name="settings_clip_length">Clip length</string>
     <string name="settings_loop_recording">Loop recording</string>
@@ -145,6 +148,8 @@
     <string name="camera_back">Back camera</string>
     <string name="camera_front">Front camera</string>
     <string name="camera_both">Both cameras</string>
+    <string name="aspect_16_9">16:9 (widescreen)</string>
+    <string name="aspect_4_3">4:3 (full sensor)</string>
     <string name="quality_sd">SD (480p)</string>
     <string name="quality_hd">HD (720p)</string>
     <string name="quality_fhd">Full HD (1080p)</string>

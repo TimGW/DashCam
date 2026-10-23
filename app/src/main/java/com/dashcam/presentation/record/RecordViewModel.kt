@@ -10,7 +10,6 @@ import com.dashcam.domain.model.CameraState
 import com.dashcam.domain.model.LocationSample
 import com.dashcam.domain.model.RecorderEvent
 import com.dashcam.domain.model.RecorderState
-import com.dashcam.domain.model.VideoQuality
 import com.dashcam.domain.repository.CameraController
 import com.dashcam.domain.repository.LocationRepository
 import com.dashcam.domain.repository.RecorderController
@@ -78,11 +77,11 @@ class RecordViewModel(
         viewModelScope.launch {
             // Rotation is part of the key: the camera rebinds the composited dual view when it changes.
             combine(cameraPermission, settingsRepository.settings, displayRotation) { granted, settings, rotation ->
-                if (granted) CameraConfig(settings.cameraFacing, settings.videoQuality, settings.separateCameraFiles, rotation) else null
+                if (granted) settings.cameraSetup to rotation else null
             }
                 .filterNotNull()
                 .distinctUntilChanged()
-                .collect { preview.configure(it.facing, it.quality, it.separateFiles) }
+                .collect { (setup, _) -> preview.configure(setup) }
         }
     }
 
@@ -151,11 +150,4 @@ class RecordViewModel(
         preview.setTargetRotation(rotation)
         displayRotation.value = rotation
     }
-
-    private data class CameraConfig(
-        val facing: CameraFacing,
-        val quality: VideoQuality,
-        val separateFiles: Boolean,
-        val rotation: Int?,
-    )
 }

@@ -5,6 +5,9 @@ enum class VideoQuality { SD, HD, FHD, UHD }
 /** [BOTH] records the back camera with the front camera as a picture-in-picture inset. */
 enum class CameraFacing { BACK, FRONT, BOTH }
 
+/** [RATIO_4_3] records the full sensor height; [RATIO_16_9] crops it to widescreen. */
+enum class VideoAspectRatio { RATIO_16_9, RATIO_4_3 }
+
 enum class SpeedUnit { KMH, MPH }
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -23,6 +26,9 @@ data class AppSettings(
     val cameraFacing: CameraFacing = CameraFacing.BACK,
     /** With [CameraFacing.BOTH]: save the front camera as its own video instead of an inset. */
     val separateCameraFiles: Boolean = false,
+    val aspectRatio: VideoAspectRatio = VideoAspectRatio.RATIO_16_9,
+    /** Start at the camera's widest zoom, which switches to the ultra-wide lens where there is one. */
+    val wideAngle: Boolean = false,
     val recordAudio: Boolean = true,
     val segmentMinutes: Int = 3,
     val loopRecording: Boolean = true,
@@ -43,8 +49,21 @@ data class AppSettings(
 ) {
     val isPinEnabled: Boolean get() = pinHash != null
 
+    val cameraSetup: CameraSetup
+        get() = CameraSetup(cameraFacing, videoQuality, separateCameraFiles, aspectRatio, wideAngle)
+
     companion object {
         val SegmentMinuteOptions = listOf(1, 3, 5, 10)
         val MaxStorageGbOptions = listOf(2, 4, 8, 16, 32, 0)
     }
 }
+
+/** The settings that decide how the camera is bound. */
+data class CameraSetup(
+    val facing: CameraFacing,
+    val quality: VideoQuality,
+    /** Only applies to [CameraFacing.BOTH]: one video per camera instead of an inset. */
+    val separateFiles: Boolean,
+    val aspectRatio: VideoAspectRatio,
+    val wideAngle: Boolean,
+)

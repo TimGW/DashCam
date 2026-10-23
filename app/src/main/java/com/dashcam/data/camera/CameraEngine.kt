@@ -7,8 +7,10 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.annotation.MainThread
+import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.CameraState as CameraXState
 import androidx.camera.core.CompositionSettings
 import androidx.camera.core.ConcurrentCamera.SingleCameraConfig
 import androidx.camera.core.ImageCapture
@@ -30,7 +32,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LifecycleRegistry
 import com.dashcam.domain.model.CameraFacing
+import com.dashcam.domain.model.CameraSetup
 import com.dashcam.domain.model.CameraState
+import com.dashcam.domain.model.VideoAspectRatio
 import com.dashcam.domain.model.VideoQuality
 import com.dashcam.domain.repository.CameraController
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,8 +51,7 @@ import kotlin.coroutines.resume
 interface CameraPreviewHost {
     /** Whether the device can stream the front and back cameras at once ([CameraFacing.BOTH]). */
     val supportsDualCamera: Boolean
-    /** [separateFiles] only applies to [CameraFacing.BOTH]: one video per camera instead of an inset. */
-    suspend fun configure(facing: CameraFacing, quality: VideoQuality, separateFiles: Boolean)
+    suspend fun configure(setup: CameraSetup)
     fun attachPreview(surfaceProvider: Preview.SurfaceProvider?)
     /** Front camera viewfinder, shown while both cameras record to separate files. */
     fun attachSecondaryPreview(surfaceProvider: Preview.SurfaceProvider?)
@@ -93,22 +96,23 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
 
     override val supportsDualCamera: Boolean = context.supportsDualCamera()
 
-    override suspend fun configure(facing: CameraFacing, quality: VideoQuality, separateFiles: Boolean) = configureMutex.withLock {
-        val separate = facing == CameraFacing.BOTH && separateFiles
+    override suspend fun configure(setup: CameraSetup) = configureMutex.withLock {
+        val dual = setup.facing == CameraFacing.BOTH
+        val normalized = setup.copy(separateFiles = dual && setup.separateFiles)
         // The inset's corner is fixed in the composited frame when binding; rotating afterwards
         // only changes the video's rotation flag and would carry the inset to another corner.
-        val compositedRotation = targetRotation.takeIf { facing == CameraFacing.BOTH && !separate }
-        val config = BoundConfig(facing, quality, separate, compositedRotation)
+        val compositedRotation = targetRotation.takeIf { dual && !normalized.separateFiles }
+        val config = BoundConfig(normalized, compositedRotation)
         if ((config == boundConfig && camera != null) || activeRecording != null) return@withLock
         try {
             val cameraProvider = provider ?: ProcessCameraProvider.awaitInstance(context).also { provider = it }
             secondaryVideoCapture = null
-            if (facing == CameraFacing.BOTH && cameraProvider.bindDual(quality, separateFiles)) {
+            if (dual && cameraProvider.bindDual(normalized)) {
                 boundConfig = config
                 return@withLock
             }
-            val selector = cameraProvider.selectorFor(facing)
-            val video = videoCaptureFor(quality)
+            val selector = cameraProvider.selectorFor(setup.facing)
+            val video = videoCaptureFor(setup.quality, setup.aspectRatio)
             val image = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                 .build()
@@ -121,7 +125,7 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
                 Log.w(TAG, "Photo capture not supported alongside video", e)
                 cameraProvider.bindToLifecycle(this, selector, preview, video) to false
             }
-            camera = boundCamera
+            onCameraBound(boundCamera, setup.wideAngle)
             videoCapture = video
             imageCapture = image.takeIf { photoSupported }
             boundConfig = config
@@ -262,6 +266,22 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
         _state.update { it.copy(zoomRatio = ratio) }
     }
 
+    /**
+     * Tracks the newly bound camera. With [wideAngle], zooms out to the widest ratio (the
+     * ultra-wide lens on multi-camera phones) once the camera is open; zooming fails before that.
+     */
+    private fun onCameraBound(boundCamera: Camera, wideAngle: Boolean) {
+        camera?.cameraInfo?.cameraState?.removeObservers(this)
+        camera = boundCamera
+        if (!wideAngle) return
+        boundCamera.cameraInfo.cameraState.observe(this) { cameraState ->
+            if (cameraState.type != CameraXState.Type.OPEN || camera !== boundCamera) return@observe
+            val minRatio = boundCamera.cameraInfo.zoomState.value?.minZoomRatio ?: return@observe
+            boundCamera.cameraControl.setZoomRatio(minRatio)
+            _state.update { it.copy(zoomRatio = minRatio) }
+        }
+    }
+
     private fun updateLifecycle() {
         registry.currentState = if (previewVisible || sessionActive) {
             Lifecycle.State.RESUMED
@@ -277,7 +297,8 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
      * [separateFiles] each camera gets its own preview and video. Returns false when the device
      * can't stream both cameras at once; the caller then binds the back camera alone.
      */
-    private fun ProcessCameraProvider.bindDual(quality: VideoQuality, separateFiles: Boolean): Boolean {
+    private fun ProcessCameraProvider.bindDual(setup: CameraSetup): Boolean {
+        val quality = setup.quality
         val pair = availableConcurrentCameraInfos.firstOrNull { infos ->
             infos.any { it.lensFacing == CameraSelector.LENS_FACING_BACK } &&
                 infos.any { it.lensFacing == CameraSelector.LENS_FACING_FRONT }
@@ -290,9 +311,9 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
         // Concurrent streaming is only guaranteed up to 720p, so retry lower before giving up.
         val qualities = listOf(quality, VideoQuality.HD).distinct().filter { it <= quality }
         for (q in qualities) {
-            val video = videoCaptureFor(q)
+            val video = videoCaptureFor(q, setup.aspectRatio)
             // Sharing one use case group makes CameraX composite; separate groups stay independent.
-            val secondaryVideo = if (separateFiles) videoCaptureFor(q) else null
+            val secondaryVideo = if (setup.separateFiles) videoCaptureFor(q, setup.aspectRatio) else null
             val group = UseCaseGroup.Builder().addUseCase(preview).addUseCase(video)
                 .apply { if (secondaryVideo == null) addEffect(roundedInsetEffect) }
                 .build()
@@ -314,7 +335,7 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
             try {
                 unbindAll()
                 val boundCamera = bindToLifecycle(configs).cameras.first()
-                camera = boundCamera
+                onCameraBound(boundCamera, setup.wideAngle)
                 videoCapture = video
                 secondaryVideoCapture = secondaryVideo
                 imageCapture = null
@@ -334,10 +355,16 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
         return false
     }
 
-    private fun videoCaptureFor(quality: VideoQuality): VideoCapture<Recorder> {
+    private fun videoCaptureFor(quality: VideoQuality, aspectRatio: VideoAspectRatio): VideoCapture<Recorder> {
         val recorder = Recorder.Builder()
             .setQualitySelector(
                 QualitySelector.from(quality.toCameraX(), FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)),
+            )
+            .setAspectRatio(
+                when (aspectRatio) {
+                    VideoAspectRatio.RATIO_16_9 -> AspectRatio.RATIO_16_9
+                    VideoAspectRatio.RATIO_4_3 -> AspectRatio.RATIO_4_3
+                },
             )
             .build()
         return VideoCapture.withOutput(recorder).also { video -> targetRotation?.let { video.targetRotation = it } }
@@ -366,9 +393,7 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
         ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
 
     private data class BoundConfig(
-        val facing: CameraFacing,
-        val quality: VideoQuality,
-        val separateFiles: Boolean,
+        val setup: CameraSetup,
         /** Target rotation the inset was composited for; null when nothing is composited. */
         val compositedRotation: Int?,
     )

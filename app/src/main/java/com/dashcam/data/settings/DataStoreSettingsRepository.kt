@@ -13,6 +13,7 @@ import com.dashcam.domain.model.CameraFacing
 import com.dashcam.domain.model.GSensorSensitivity
 import com.dashcam.domain.model.SpeedUnit
 import com.dashcam.domain.model.ThemeMode
+import com.dashcam.domain.model.VideoAspectRatio
 import com.dashcam.domain.model.VideoQuality
 import com.dashcam.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
@@ -38,6 +39,8 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
             videoQuality = enumOf(this[Keys.videoQuality], defaults.videoQuality),
             cameraFacing = enumOf(this[Keys.cameraFacing], defaults.cameraFacing),
             separateCameraFiles = this[Keys.separateCameraFiles] ?: defaults.separateCameraFiles,
+            aspectRatio = enumOf(this[Keys.aspectRatio], defaults.aspectRatio),
+            wideAngle = this[Keys.wideAngle] ?: defaults.wideAngle,
             recordAudio = this[Keys.recordAudio] ?: defaults.recordAudio,
             segmentMinutes = this[Keys.segmentMinutes] ?: defaults.segmentMinutes,
             loopRecording = this[Keys.loopRecording] ?: defaults.loopRecording,
@@ -61,6 +64,8 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
         this[Keys.videoQuality] = s.videoQuality.name
         this[Keys.cameraFacing] = s.cameraFacing.name
         this[Keys.separateCameraFiles] = s.separateCameraFiles
+        this[Keys.aspectRatio] = s.aspectRatio.name
+        this[Keys.wideAngle] = s.wideAngle
         this[Keys.recordAudio] = s.recordAudio
         this[Keys.segmentMinutes] = s.segmentMinutes
         this[Keys.loopRecording] = s.loopRecording
@@ -86,6 +91,8 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
         val videoQuality = stringPreferencesKey("video_quality")
         val cameraFacing = stringPreferencesKey("camera_facing")
         val separateCameraFiles = booleanPreferencesKey("separate_camera_files")
+        val aspectRatio = stringPreferencesKey("aspect_ratio")
+        val wideAngle = booleanPreferencesKey("wide_angle")
         val recordAudio = booleanPreferencesKey("record_audio")
         val segmentMinutes = intPreferencesKey("segment_minutes")
         val loopRecording = booleanPreferencesKey("loop_recording")

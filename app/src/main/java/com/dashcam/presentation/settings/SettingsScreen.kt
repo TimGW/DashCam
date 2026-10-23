@@ -9,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.outlined.AspectRatio
 import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.CarCrash
 import androidx.compose.material.icons.outlined.Cameraswitch
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Vibration
 import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.ZoomOutMap
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -60,6 +62,7 @@ import com.dashcam.domain.model.CameraFacing
 import com.dashcam.domain.model.GSensorSensitivity
 import com.dashcam.domain.model.SpeedUnit
 import com.dashcam.domain.model.ThemeMode
+import com.dashcam.domain.model.VideoAspectRatio
 import com.dashcam.domain.model.VideoQuality
 import com.dashcam.presentation.common.containerViewModelFactory
 
@@ -118,6 +121,25 @@ private fun LazyListScope.settingsContent(
     }
     item { CameraSetting(s, update) }
     item { SeparateCameraFilesSetting(s, update) }
+    item {
+        ChoiceSetting(
+            title = stringResource(R.string.settings_aspect_ratio),
+            icon = Icons.Outlined.AspectRatio,
+            options = VideoAspectRatio.entries,
+            selected = s.aspectRatio,
+            label = { stringResource(it.labelRes()) },
+            onSelect = { r -> update { it.copy(aspectRatio = r) } },
+        )
+    }
+    item {
+        SwitchSetting(
+            title = stringResource(R.string.settings_wide_angle),
+            summary = stringResource(R.string.settings_wide_angle_summary),
+            icon = Icons.Outlined.ZoomOutMap,
+            checked = s.wideAngle,
+            onCheckedChange = { v -> update { it.copy(wideAngle = v) } },
+        )
+    }
     item {
         SwitchSetting(
             title = stringResource(R.string.settings_audio),
@@ -378,6 +400,11 @@ private fun CameraFacing.labelRes() = when (this) {
     CameraFacing.BACK -> R.string.camera_back
     CameraFacing.FRONT -> R.string.camera_front
     CameraFacing.BOTH -> R.string.camera_both
+}
+
+private fun VideoAspectRatio.labelRes() = when (this) {
+    VideoAspectRatio.RATIO_16_9 -> R.string.aspect_16_9
+    VideoAspectRatio.RATIO_4_3 -> R.string.aspect_4_3
 }
 
 private fun GSensorSensitivity.labelRes() = when (this) {
