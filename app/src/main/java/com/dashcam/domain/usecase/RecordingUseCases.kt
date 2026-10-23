@@ -38,37 +38,46 @@ class DeleteRecordingsUseCase(private val repository: RecordingsRepository) {
 }
 
 /**
- * Loop recording: frees space by deleting the oldest unlocked videos until the recordings fit the
- * configured limit and the device keeps a minimum of free space.
+ * Loop recording: frees space by deleting the oldest unlocked videos until the recordings plus
+ * [reserveBytes] (the clip about to be recorded) fit the configured limit, and the device keeps
+ * a minimum of free space after that clip.
  */
 class EnforceStorageLimitUseCase(
     private val recordings: RecordingsRepository,
     private val settings: SettingsRepository,
 ) {
-    enum class Result { OK, FULL }
+    sealed interface Result {
+        data class Ok(val deletedClips: Int) : Result
+        data object Full : Result
+    }
 
-    suspend operator fun invoke(): Result {
+    suspend operator fun invoke(reserveBytes: Long = 0): Result {
         val current = settings.settings.first()
         val limit = if (current.maxStorageGb == 0) Long.MAX_VALUE else current.maxStorageGb * GB
         val stats = recordings.storageStats()
-        var used = stats.recordingsBytes
-        var free = stats.freeBytes
-        if (used <= limit && free >= MIN_FREE_BYTES) return Result.OK
-        if (!current.loopRecording) return Result.FULL
+        var used = stats.recordingsBytes + reserveBytes
+        var free = stats.freeBytes - reserveBytes
+        if (used <= limit && free >= MIN_FREE_BYTES) return Result.Ok(deletedClips = 0)
+        if (!current.loopRecording) return Result.Full
 
         val deletable = recordings.getRecordings()
             .filter { it.type == RecordingType.VIDEO && !it.isLocked }
             .sortedBy { it.createdAtMillis }
             .iterator()
+        var deleted = 0
         while (used > limit || free < MIN_FREE_BYTES) {
-            if (!deletable.hasNext()) return Result.FULL
+            if (!deletable.hasNext()) {
+                if (deleted > 0) recordings.refresh()
+                return Result.Full
+            }
             val oldest = deletable.next()
             recordings.delete(listOf(oldest.id))
+            deleted++
             used -= oldest.sizeBytes
             free += oldest.sizeBytes
         }
         recordings.refresh()
-        return Result.OK
+        return Result.Ok(deleted)
     }
 
     private companion object {

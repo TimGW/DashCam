@@ -28,6 +28,10 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        // android.util.Log etc. return defaults in JVM unit tests instead of throwing.
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -55,6 +59,9 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:$cameraX")
     implementation("androidx.camera:camera-video:$cameraX")
     implementation("androidx.camera:camera-view:$cameraX")
+
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.8.1")
 
     val media3 = "1.8.0"
     implementation("androidx.media3:media3-exoplayer:$media3")

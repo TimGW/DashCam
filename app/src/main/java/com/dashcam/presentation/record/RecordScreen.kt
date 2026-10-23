@@ -364,7 +364,11 @@ private fun StatusPills(state: RecordUiState) {
         val elapsed = rememberElapsed(recorder.startedAtMillis)
         StatusPill(
             icon = if (recorder.isLocked) Icons.Filled.Lock else null,
-            text = stringResource(R.string.record_status_rec, formatDuration(elapsed)),
+            text = if (recorder.isInterrupted) {
+                stringResource(R.string.record_status_retrying)
+            } else {
+                stringResource(R.string.record_status_rec, formatDuration(elapsed))
+            },
             containerColor = RecordRed,
         )
     }
@@ -573,7 +577,12 @@ private fun RecorderEvent.messageRes(): Int? = when (this) {
     RecorderEvent.PhotoFailed -> R.string.msg_photo_failed
     RecorderEvent.StorageFull -> R.string.msg_storage_full
     RecorderEvent.StopToSwitchCamera -> R.string.msg_stop_to_switch_camera
-    is RecorderEvent.CameraError -> R.string.msg_camera_error
+    RecorderEvent.CameraInterrupted -> R.string.msg_camera_interrupted
+    RecorderEvent.CameraResumed -> R.string.msg_camera_resumed
+    RecorderEvent.Overheating -> R.string.msg_overheating
+    RecorderEvent.StoppedTooHot -> R.string.msg_stopped_too_hot
+    RecorderEvent.BatteryLow -> R.string.msg_battery_low
+    RecorderEvent.StoppedBatteryEmpty -> R.string.msg_stopped_battery_empty
 }
 
 private fun Context.isGranted(permission: String) =

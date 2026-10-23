@@ -8,6 +8,8 @@ sealed interface RecorderState {
         val segmentStartedAtMillis: Long,
         val isLocked: Boolean,
         val isAudioMuted: Boolean,
+        /** The camera was lost (error, taken by another app); the session keeps retrying. */
+        val isInterrupted: Boolean = false,
     ) : RecorderState
 }
 
@@ -19,8 +21,14 @@ sealed interface RecorderEvent {
     data object PhotoSaved : RecorderEvent
     data object PhotoFailed : RecorderEvent
     data object StorageFull : RecorderEvent
+    data object CameraInterrupted : RecorderEvent
+    data object CameraResumed : RecorderEvent
+    /** The phone got hot: recording continues at a lower quality. */
+    data object Overheating : RecorderEvent
+    data object StoppedTooHot : RecorderEvent
+    data object BatteryLow : RecorderEvent
+    data object StoppedBatteryEmpty : RecorderEvent
     data object StopToSwitchCamera : RecorderEvent
-    data class CameraError(val message: String?) : RecorderEvent
 }
 
 data class CameraState(

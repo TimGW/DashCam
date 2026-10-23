@@ -47,6 +47,9 @@ import kotlinx.coroutines.sync.withLock
 import java.io.File
 import kotlin.coroutines.resume
 
+/** Why a clip ended before it was stopped. [outOfStorage] clips are still playable. */
+data class ClipFailure(val outOfStorage: Boolean, val message: String)
+
 /** Screen-facing camera operations used by the record screen. */
 interface CameraPreviewHost {
     /** Whether the device can stream the front and back cameras at once ([CameraFacing.BOTH]). */
@@ -175,7 +178,8 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
     /**
      * Starts writing one video segment to [file], and the front camera to [secondaryFile] when
      * [recordsSecondaryVideo]. [onFinalized] runs once every file is closed and receives the
-     * first error message, or null when the segment was closed cleanly.
+     * first failure, or null when the segment was closed cleanly. It may be called while a
+     * previous segment is still finalizing: the recorder then starts it as soon as it can.
      */
     @SuppressLint("MissingPermission")
     fun startSegment(
@@ -183,7 +187,7 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
         secondaryFile: File?,
         withAudio: Boolean,
         muted: Boolean,
-        onFinalized: (String?) -> Unit,
+        onFinalized: (ClipFailure?) -> Unit,
     ): Boolean {
         val output = videoCapture?.output ?: return false
         val secondaryOutput = secondaryFile?.let { secondaryVideoCapture?.output }
@@ -192,20 +196,20 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
             pending = pending.withAudioEnabled()
         }
         var remaining = if (secondaryOutput != null) 2 else 1
-        var firstError: String? = null
-        val onFileFinalized = { error: String? ->
+        var firstError: ClipFailure? = null
+        val onFileFinalized = { error: ClipFailure? ->
             firstError = firstError ?: error
             if (--remaining == 0) onFinalized(firstError)
         }
         return try {
             activeRecording = pending.start(mainExecutor) { event ->
-                if (event is VideoRecordEvent.Finalize) onFileFinalized(event.errorMessage())
+                if (event is VideoRecordEvent.Finalize) onFileFinalized(event.failure())
             }.also { it.mute(muted) }
             // Audio goes into the main file only; two recordings can't share the microphone.
             activeSecondaryRecording = secondaryOutput
                 ?.prepareRecording(context, FileOutputOptions.Builder(secondaryFile).build())
                 ?.start(mainExecutor) { event ->
-                    if (event is VideoRecordEvent.Finalize) onFileFinalized(event.errorMessage())
+                    if (event is VideoRecordEvent.Finalize) onFileFinalized(event.failure())
                 }
             true
         } catch (e: RuntimeException) {
@@ -222,9 +226,17 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
         activeSecondaryRecording = null
     }
 
-    private fun VideoRecordEvent.Finalize.errorMessage(): String? = when (error) {
+    private fun VideoRecordEvent.Finalize.failure(): ClipFailure? = when (error) {
         VideoRecordEvent.Finalize.ERROR_NONE -> null
-        else -> cause?.message ?: "Recording error $error"
+        else -> ClipFailure(
+            outOfStorage = error == VideoRecordEvent.Finalize.ERROR_INSUFFICIENT_STORAGE,
+            message = cause?.message ?: "Recording error $error",
+        )
+    }
+
+    /** Forces the next [configure] to bind the camera again, e.g. after it was lost to another app. */
+    fun invalidate() {
+        boundConfig = null
     }
 
     fun setMuted(muted: Boolean) {

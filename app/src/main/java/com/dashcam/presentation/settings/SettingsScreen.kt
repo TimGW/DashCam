@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Colorize
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.HighQuality
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LightMode
@@ -81,6 +82,7 @@ import com.dashcam.service.NavigationListenerService
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
+    onOpenEventLog: () -> Unit,
     viewModel: SettingsViewModel = viewModel(
         factory = containerViewModelFactory { SettingsViewModel(it.settingsRepository, it.managePin) },
     ),
@@ -105,7 +107,7 @@ fun SettingsScreen(
     ) { padding ->
         val current = settings ?: return@Scaffold
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
-            settingsContent(current, viewModel::update, onPinAction = { pinDialog = it })
+            settingsContent(current, viewModel::update, onPinAction = { pinDialog = it }, onOpenEventLog = onOpenEventLog)
         }
     }
 
@@ -118,6 +120,7 @@ private fun LazyListScope.settingsContent(
     s: AppSettings,
     update: ((AppSettings) -> AppSettings) -> Unit,
     onPinAction: (PinDialogMode) -> Unit,
+    onOpenEventLog: () -> Unit,
 ) {
     item { SectionHeader(stringResource(R.string.settings_section_video)) }
     item {
@@ -340,6 +343,14 @@ private fun LazyListScope.settingsContent(
     }
 
     item { SectionHeader(stringResource(R.string.settings_section_about)) }
+    item {
+        ActionSetting(
+            title = stringResource(R.string.event_log_title),
+            summary = stringResource(R.string.settings_event_log_summary),
+            icon = Icons.Outlined.History,
+            onClick = onOpenEventLog,
+        )
+    }
     item { VersionSetting() }
 }
 

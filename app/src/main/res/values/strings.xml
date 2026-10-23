@@ -48,13 +48,23 @@
     <string name="msg_photo_failed">Couldn\'t take a photo</string>
     <string name="msg_storage_full">Storage is full. Recording stopped.</string>
     <string name="msg_stop_to_switch_camera">Stop recording to switch cameras</string>
-    <string name="msg_camera_error">The camera stopped unexpectedly. Recording stopped.</string>
+    <string name="msg_camera_interrupted">Camera unavailable. Recording resumes as soon as it\'s back.</string>
+    <string name="msg_camera_resumed">Camera back. Recording resumed.</string>
+    <string name="msg_overheating">Phone is hot. Recording continues at 720p.</string>
+    <string name="msg_stopped_too_hot">Phone is too hot. Recording stopped and saved.</string>
+    <string name="msg_battery_low">Battery low. Connect a charger to keep recording.</string>
+    <string name="msg_stopped_battery_empty">Battery almost empty. Recording stopped and saved.</string>
+    <string name="record_status_retrying">Retrying camera</string>
 
     <!-- Notification / tile -->
     <string name="notification_channel_recording">Recording</string>
     <string name="notification_recording_title">DashCam is recording</string>
     <string name="notification_recording_text">Recording in a loop</string>
     <string name="notification_recording_locked">Current clip is locked</string>
+    <string name="notification_recording_interrupted">Camera unavailable. Retrying…</string>
+    <string name="notification_channel_alerts">Recording alerts</string>
+    <string name="notification_interrupted_title">Recording stopped unexpectedly</string>
+    <string name="notification_interrupted_text">Android closed DashCam. Tap to resume recording.</string>
     <string name="tile_record">Record</string>
     <string name="notification_channel_navigation">Navigation</string>
     <string name="notification_navigation_title">Navigation started</string>
@@ -163,6 +173,10 @@
     <string name="settings_dynamic_color">Dynamic color</string>
     <string name="settings_dynamic_color_summary">Use colors from your wallpaper</string>
     <string name="settings_version">Version</string>
+    <string name="settings_event_log_summary">What happened while recording: starts, stops, camera problems</string>
+    <string name="event_log_title">Event log</string>
+    <string name="event_log_empty">Nothing logged yet.</string>
+    <string name="event_log_clear">Clear log</string>
     <string name="camera_back">Back camera</string>
     <string name="camera_front">Front camera</string>
     <string name="camera_both">Both cameras</string>

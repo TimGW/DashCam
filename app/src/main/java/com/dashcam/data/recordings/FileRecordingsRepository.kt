@@ -32,8 +32,7 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
     private val refreshSignal = MutableStateFlow(0L)
     private val durationCache = ConcurrentHashMap<String, Pair<Long, Long>>()
 
-    @Volatile
-    private var inProgress: Set<String> = emptySet()
+    private val inProgress: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     override fun observeRecordings(): Flow<List<Recording>> =
         refreshSignal.map { scan() }.flowOn(Dispatchers.IO)
@@ -41,7 +40,11 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
     override suspend fun getRecordings(): List<Recording> = withContext(Dispatchers.IO) { scan() }
 
     override suspend fun createVideoFile(): String = withContext(Dispatchers.IO) {
-        File(videoDir.mkdirsIfNeeded(), "$PREFIX${timestamp(VIDEO_PATTERN)}.$VIDEO_EXT").absolutePath
+        val dir = videoDir.mkdirsIfNeeded()
+        val base = uniqueVideoBase(Date()) { candidate ->
+            File(dir, "$candidate.$VIDEO_EXT").exists() || File(dir, "$candidate$LOCKED_SUFFIX.$VIDEO_EXT").exists()
+        }
+        File(dir, "$base.$VIDEO_EXT").absolutePath
     }
 
     override fun secondaryVideoFile(videoPath: String): String {
@@ -80,8 +83,13 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
         )
     }
 
-    override fun setInProgress(ids: Set<String>) {
-        inProgress = ids
+    override fun markInProgress(ids: Collection<String>) {
+        inProgress.addAll(ids)
+        refresh()
+    }
+
+    override fun clearInProgress(ids: Collection<String>) {
+        inProgress.removeAll(ids.toSet())
         refresh()
     }
 
@@ -143,16 +151,30 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
 
     private fun File.mkdirsIfNeeded(): File = apply { if (!exists()) mkdirs() }
 
-    private companion object {
-        const val PREFIX = "DC_"
-        const val LOCKED_SUFFIX = "_locked"
-        const val FRONT_SUFFIX = "_front"
-        const val VIDEO_EXT = "mp4"
-        const val PHOTO_EXT = "jpg"
-        const val VIDEO_PATTERN = "yyyyMMdd_HHmmss"
-        const val PHOTO_PATTERN = "yyyyMMdd_HHmmss_SSS"
+    internal companion object {
+        private const val PREFIX = "DC_"
+        private const val LOCKED_SUFFIX = "_locked"
+        private const val FRONT_SUFFIX = "_front"
+        private const val VIDEO_EXT = "mp4"
+        private const val PHOTO_EXT = "jpg"
+        private const val VIDEO_PATTERN = "yyyyMMdd_HHmmss"
+        private const val PHOTO_PATTERN = "yyyyMMdd_HHmmss_SSS"
 
-        fun mediaDir(context: Context, type: String): File =
+        /**
+         * Video names only have second precision; when a clip with that name already exists (a
+         * recording restarted within the same second), use the next free second instead.
+         */
+        internal fun uniqueVideoBase(date: Date, taken: (String) -> Boolean): String {
+            val format = SimpleDateFormat(VIDEO_PATTERN, Locale.US)
+            var time = date.time
+            while (true) {
+                val base = PREFIX + format.format(Date(time))
+                if (!taken(base)) return base
+                time += 1_000
+            }
+        }
+
+        private fun mediaDir(context: Context, type: String): File =
             File(context.getExternalFilesDir(type) ?: File(context.filesDir, type), "DashCam")
     }
 }

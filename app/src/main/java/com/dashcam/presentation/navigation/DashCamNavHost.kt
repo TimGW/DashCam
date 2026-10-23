@@ -9,6 +9,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import com.dashcam.domain.model.RecordingType
+import com.dashcam.presentation.log.EventLogScreen
 import com.dashcam.presentation.player.PhotoScreen
 import com.dashcam.presentation.player.PlayerScreen
 import com.dashcam.presentation.record.RecordScreen
@@ -24,6 +25,9 @@ data object RecordingsDestination
 
 @Serializable
 data object SettingsDestination
+
+@Serializable
+data object EventLogDestination
 
 @Serializable
 data class PlayerDestination(val path: String)
@@ -73,7 +77,13 @@ fun DashCamNavHost(
             )
         }
         composable<SettingsDestination> {
-            SettingsScreen(onBack = { navController.navigateUp() })
+            SettingsScreen(
+                onBack = { navController.navigateUp() },
+                onOpenEventLog = { navController.navigate(EventLogDestination) },
+            )
+        }
+        composable<EventLogDestination> {
+            EventLogScreen(onBack = { navController.navigateUp() })
         }
         composable<PlayerDestination> { entry ->
             PlayerScreen(path = entry.toRoute<PlayerDestination>().path, onBack = { navController.navigateUp() })

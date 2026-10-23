@@ -9,6 +9,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.PowerManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -22,10 +23,16 @@ import com.dashcam.domain.model.RecorderState
 import com.dashcam.presentation.MainActivity
 import kotlinx.coroutines.launch
 
-/** Foreground service that keeps the camera recording while the app is in the background. */
+/**
+ * Foreground service that keeps the camera recording while the app is in the background.
+ * If Android kills the process mid-recording, the sticky restart can't reopen the camera from the
+ * background, so it tells the user instead of silently leaving them without a recording.
+ */
 class RecorderService : LifecycleService() {
 
-    private val session get() = (application as DashCamApplication).container.recordingSession
+    private val container get() = (application as DashCamApplication).container
+    private val session get() = container.recordingSession
+    private val sessionMarker get() = getSharedPreferences(MARKER_PREFS, MODE_PRIVATE)
     private var wakeLock: PowerManager.WakeLock? = null
     private var running = false
 
@@ -36,6 +43,8 @@ class RecorderService : LifecycleService() {
             session.state.collect { state ->
                 if (running && state is RecorderState.Recording) {
                     getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, buildNotification(state))
+                    // Not reference counted: re-acquiring extends the timeout for long drives.
+                    wakeLock?.acquire(WAKE_LOCK_TIMEOUT_MS)
                 }
             }
         }
@@ -44,11 +53,47 @@ class RecorderService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
+            null -> onRestartedAfterKill()
             ACTION_STOP -> session.end()
             ACTION_LOCK -> session.toggleLock()
             else -> start()
         }
-        return START_NOT_STICKY
+        return START_STICKY
+    }
+
+    /** A sticky restart (null intent): the process died while a session was marked active. */
+    private fun onRestartedAfterKill() {
+        if (!running && sessionMarker.getBoolean(KEY_ACTIVE, false)) {
+            sessionMarker.edit().putBoolean(KEY_ACTIVE, false).commit()
+            container.eventLog.log("Recording was interrupted: the app was closed by Android")
+            notifyInterrupted()
+        }
+        if (!running) stopSelf()
+    }
+
+    private fun notifyInterrupted() {
+        if (!granted(Manifest.permission.POST_NOTIFICATIONS) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.createNotificationChannel(
+            NotificationChannel(ALERT_CHANNEL_ID, getString(R.string.notification_channel_alerts), NotificationManager.IMPORTANCE_HIGH),
+        )
+        val resume = PendingIntent.getActivity(
+            this, 3,
+            Intent(this, MainActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(MainActivity.EXTRA_START_RECORDING, true),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_videocam)
+            .setContentTitle(getString(R.string.notification_interrupted_title))
+            .setContentText(getString(R.string.notification_interrupted_text))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_ERROR)
+            .setAutoCancel(true)
+            .setContentIntent(resume)
+            .build()
+        manager.notify(INTERRUPTED_NOTIFICATION_ID, notification)
     }
 
     private fun start() {
@@ -58,9 +103,11 @@ class RecorderService : LifecycleService() {
             return
         }
         running = true
+        sessionMarker.edit().putBoolean(KEY_ACTIVE, true).commit()
         acquireWakeLock()
         lifecycleScope.launch {
             session.begin().join()
+            sessionMarker.edit().putBoolean(KEY_ACTIVE, false).commit()
             running = false
             ServiceCompat.stopForeground(this@RecorderService, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -90,7 +137,13 @@ class RecorderService : LifecycleService() {
             .setSmallIcon(R.drawable.ic_videocam)
             .setContentTitle(getString(R.string.notification_recording_title))
             .setContentText(
-                getString(if (state?.isLocked == true) R.string.notification_recording_locked else R.string.notification_recording_text),
+                getString(
+                    when {
+                        state?.isInterrupted == true -> R.string.notification_recording_interrupted
+                        state?.isLocked == true -> R.string.notification_recording_locked
+                        else -> R.string.notification_recording_text
+                    },
+                ),
             )
             .setOngoing(true)
             .setOnlyAlertOnce(true)
@@ -136,6 +189,10 @@ class RecorderService : LifecycleService() {
         private const val TAG = "RecorderService"
         private const val CHANNEL_ID = "recording"
         private const val NOTIFICATION_ID = 1
+        private const val INTERRUPTED_NOTIFICATION_ID = 4
+        private const val ALERT_CHANNEL_ID = "alerts"
+        private const val MARKER_PREFS = "recorder_session"
+        private const val KEY_ACTIVE = "active"
         private const val WAKE_LOCK_TIMEOUT_MS = 12 * 60 * 60 * 1000L
         private const val ACTION_START = "com.dashcam.action.START"
         private const val ACTION_STOP = "com.dashcam.action.STOP"

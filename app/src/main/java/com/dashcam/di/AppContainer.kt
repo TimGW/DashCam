@@ -2,6 +2,8 @@ package com.dashcam.di
 
 import android.app.Application
 import com.dashcam.data.camera.CameraEngine
+import com.dashcam.data.device.AndroidDeviceHealthMonitor
+import com.dashcam.data.log.EventLog
 import com.dashcam.data.location.AndroidLocationRepository
 import com.dashcam.data.recorder.HapticFeedback
 import com.dashcam.data.recorder.InMemoryPinSession
@@ -28,6 +30,7 @@ import com.dashcam.domain.usecase.SetRecordingsLockedUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import java.io.File
 
 /** Manual dependency graph; one instance per process. */
 class AppContainer(app: Application) {
@@ -40,6 +43,7 @@ class AppContainer(app: Application) {
     val recordingExporter: RecordingExporter = MediaStoreExporter(app)
     val pinSession: PinSession = InMemoryPinSession()
     private val impactDetector: ImpactDetector = AccelerometerImpactDetector(app)
+    val eventLog = EventLog(File(app.filesDir, "event_log.txt"))
 
     val cameraEngine = CameraEngine(app)
     val cameraController: CameraController get() = cameraEngine
@@ -51,11 +55,14 @@ class AppContainer(app: Application) {
         location = locationRepository,
         impactDetector = impactDetector,
         enforceStorageLimit = EnforceStorageLimitUseCase(recordingsRepository, settingsRepository),
+        deviceHealth = AndroidDeviceHealthMonitor(app),
+        eventLog = eventLog,
         haptics = HapticFeedback(app),
         scope = appScope,
     )
     val recorderController: RecorderController = ServiceRecorderController(app, recordingSession)
-    val navigationAutoRecorder = NavigationAutoRecorder(app, settingsRepository, recorderController, appScope)
+    val navigationAutoRecorder =
+        NavigationAutoRecorder(app, settingsRepository, recorderController, eventLog, appScope)
 
     val observeRecordings = ObserveRecordingsUseCase(recordingsRepository)
     val setRecordingsLocked = SetRecordingsLockedUseCase(recordingsRepository)

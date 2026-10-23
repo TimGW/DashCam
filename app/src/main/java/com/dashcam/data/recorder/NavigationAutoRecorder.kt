@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.dashcam.R
+import com.dashcam.data.log.EventLog
 import com.dashcam.domain.model.RecorderState
 import com.dashcam.domain.repository.RecorderController
 import com.dashcam.domain.repository.SettingsRepository
@@ -32,6 +33,7 @@ class NavigationAutoRecorder(
     private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val recorder: RecorderController,
+    private val eventLog: EventLog,
     private val scope: CoroutineScope,
 ) {
     private var navigating = false
@@ -71,11 +73,13 @@ class NavigationAutoRecorder(
         if (Settings.canDrawOverlays(context)) {
             try {
                 context.startActivity(intent)
+                eventLog.log("Navigation started in $navigationApp: starting recording")
                 return
             } catch (e: RuntimeException) {
                 Log.w(TAG, "Couldn't open DashCam from the background", e)
             }
         }
+        eventLog.log("Navigation started in $navigationApp: asking to tap to record")
         showTapToRecordNotification(intent)
     }
 
@@ -88,7 +92,10 @@ class NavigationAutoRecorder(
         // A delay lets a short break in navigation (a stop along the way) keep recording.
         stopJob = scope.launch {
             delay(stopDelay)
-            if (startedByNavigation && recorder.state.value is RecorderState.Recording) recorder.stop()
+            if (startedByNavigation && recorder.state.value is RecorderState.Recording) {
+                eventLog.log("Navigation ended: stopping recording")
+                recorder.stop()
+            }
         }
     }
 
