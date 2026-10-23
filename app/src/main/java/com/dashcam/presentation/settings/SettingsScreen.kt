@@ -1,6 +1,7 @@
 package com.dashcam.presentation.settings
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.layout.PaddingValues
@@ -24,6 +25,7 @@ import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.Loop
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Password
+import androidx.compose.material.icons.outlined.PictureInPictureAlt
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Route
 import androidx.compose.material.icons.outlined.Sensors
@@ -274,6 +276,7 @@ private fun LazyListScope.settingsContent(
             onCheckedChange = { v -> update { it.copy(vibrateOnStartStop = v) } },
         )
     }
+    item { PictureInPictureSetting(s, update) }
     item { BatteryOptimizationSetting() }
 
     item { SectionHeader(stringResource(R.string.settings_section_privacy)) }
@@ -358,6 +361,19 @@ private fun SeparateCameraFilesSetting(s: AppSettings, update: ((AppSettings) ->
         checked = s.separateCameraFiles,
         onCheckedChange = { v -> update { it.copy(separateCameraFiles = v) } },
         enabled = s.cameraFacing == CameraFacing.BOTH,
+    )
+}
+
+@Composable
+private fun PictureInPictureSetting(s: AppSettings, update: ((AppSettings) -> AppSettings) -> Unit) {
+    val context = LocalContext.current
+    if (!remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) }) return
+    SwitchSetting(
+        title = stringResource(R.string.settings_picture_in_picture),
+        summary = stringResource(R.string.settings_picture_in_picture_summary),
+        icon = Icons.Outlined.PictureInPictureAlt,
+        checked = s.pictureInPicture,
+        onCheckedChange = { v -> update { it.copy(pictureInPicture = v) } },
     )
 }
 

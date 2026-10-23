@@ -134,6 +134,8 @@
     <string name="settings_auto_start">Start recording on launch</string>
     <string name="settings_auto_start_summary">Begin recording as soon as the app opens</string>
     <string name="settings_keep_screen_on">Keep screen on</string>
+    <string name="settings_picture_in_picture">Picture-in-picture</string>
+    <string name="settings_picture_in_picture_summary">Keep the viewfinder in a small window when you leave the app while recording</string>
     <string name="settings_vibrate_start_stop">Vibrate when recording starts or stops</string>
     <string name="settings_battery">Battery optimization</string>
     <string name="settings_battery_summary">Exclude DashCam so long background recordings aren\'t stopped</string>

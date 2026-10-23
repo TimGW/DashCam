@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
+import android.util.Rational
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.view.PreviewView
@@ -92,6 +94,7 @@ import com.dashcam.R
 import com.dashcam.domain.model.RecorderEvent
 import com.dashcam.domain.model.RecorderState
 import com.dashcam.domain.model.SpeedUnit
+import com.dashcam.domain.model.VideoAspectRatio
 import com.dashcam.domain.model.toSpeed
 import com.dashcam.presentation.common.containerViewModelFactory
 import com.dashcam.presentation.common.formatBytes
@@ -177,6 +180,19 @@ fun RecordScreen(
         }
     }
 
+    val inPictureInPicture = rememberIsInPictureInPictureMode()
+    val recorder = state.recorder
+    PictureInPictureEffect(
+        enabled = state.settings?.pictureInPicture == true && recorder is RecorderState.Recording,
+        aspectRatio = pictureInPictureAspect(state.settings?.aspectRatio, configuration.orientation),
+        isLocked = (recorder as? RecorderState.Recording)?.isLocked == true,
+    )
+    // Stopping from the window's own button leaves nothing to show: close the window.
+    val activity = LocalActivity.current
+    LaunchedEffect(inPictureInPicture, state.isRecording) {
+        if (inPictureInPicture && !state.isRecording) activity?.moveTaskToBack(false)
+    }
+
     Box(
         Modifier
             .fillMaxSize()
@@ -196,7 +212,8 @@ fun RecordScreen(
             )
         }
 
-        Column(Modifier.fillMaxSize()) {
+        // The PiP window only shows the viewfinder; its controls are the window's own actions.
+        if (!inPictureInPicture) Column(Modifier.fillMaxSize()) {
             TopOverlay(
                 state = state,
                 onSwitchCamera = viewModel::switchCamera,
@@ -229,6 +246,12 @@ fun RecordScreen(
             )
         }
     }
+}
+
+/** The recording's shape in the current orientation, as the PiP window's aspect ratio. */
+private fun pictureInPictureAspect(aspectRatio: VideoAspectRatio?, orientation: Int): Rational {
+    val (long, short) = if (aspectRatio == VideoAspectRatio.RATIO_4_3) 4 to 3 else 16 to 9
+    return if (orientation == Configuration.ORIENTATION_LANDSCAPE) Rational(long, short) else Rational(short, long)
 }
 
 @Composable

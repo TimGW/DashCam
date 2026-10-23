@@ -105,14 +105,10 @@ class RecorderService : LifecycleService() {
                     setShowWhen(true)
                 }
             }
-            .addAction(0, getString(lockLabel), servicePendingIntent(ACTION_LOCK, 1))
-            .addAction(0, getString(R.string.action_stop), servicePendingIntent(ACTION_STOP, 2))
+            .addAction(0, getString(lockLabel), lockPendingIntent(this))
+            .addAction(0, getString(R.string.action_stop), stopPendingIntent(this))
             .build()
     }
-
-    private fun servicePendingIntent(action: String, requestCode: Int) = PendingIntent.getService(
-        this, requestCode, Intent(this, RecorderService::class.java).setAction(action), PendingIntent.FLAG_IMMUTABLE,
-    )
 
     private fun createChannel() {
         val channel = NotificationChannel(
@@ -147,5 +143,16 @@ class RecorderService : LifecycleService() {
 
         fun startIntent(context: Context): Intent =
             Intent(context, RecorderService::class.java).setAction(ACTION_START)
+
+        /** Toggles the lock on the current clip; used by the notification and the PiP window. */
+        fun lockPendingIntent(context: Context): PendingIntent = servicePendingIntent(context, ACTION_LOCK, 1)
+
+        fun stopPendingIntent(context: Context): PendingIntent = servicePendingIntent(context, ACTION_STOP, 2)
+
+        private fun servicePendingIntent(context: Context, action: String, requestCode: Int) =
+            PendingIntent.getService(
+                context, requestCode, Intent(context, RecorderService::class.java).setAction(action),
+                PendingIntent.FLAG_IMMUTABLE,
+            )
     }
 }

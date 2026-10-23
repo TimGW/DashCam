@@ -53,6 +53,7 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
             speedUnit = enumOf(this[Keys.speedUnit], defaults.speedUnit),
             autoStartOnLaunch = this[Keys.autoStartOnLaunch] ?: defaults.autoStartOnLaunch,
             keepScreenOn = this[Keys.keepScreenOn] ?: defaults.keepScreenOn,
+            pictureInPicture = this[Keys.pictureInPicture] ?: defaults.pictureInPicture,
             vibrateOnStartStop = this[Keys.vibrateOnStartStop] ?: defaults.vibrateOnStartStop,
             themeMode = enumOf(this[Keys.themeMode], defaults.themeMode),
             dynamicColor = this[Keys.dynamicColor] ?: defaults.dynamicColor,
@@ -78,6 +79,7 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
         this[Keys.speedUnit] = s.speedUnit.name
         this[Keys.autoStartOnLaunch] = s.autoStartOnLaunch
         this[Keys.keepScreenOn] = s.keepScreenOn
+        this[Keys.pictureInPicture] = s.pictureInPicture
         this[Keys.vibrateOnStartStop] = s.vibrateOnStartStop
         this[Keys.themeMode] = s.themeMode.name
         this[Keys.dynamicColor] = s.dynamicColor
@@ -105,6 +107,7 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
         val speedUnit = stringPreferencesKey("speed_unit")
         val autoStartOnLaunch = booleanPreferencesKey("auto_start_on_launch")
         val keepScreenOn = booleanPreferencesKey("keep_screen_on")
+        val pictureInPicture = booleanPreferencesKey("picture_in_picture")
         val vibrateOnStartStop = booleanPreferencesKey("vibrate_on_start_stop")
         val themeMode = stringPreferencesKey("theme_mode")
         val dynamicColor = booleanPreferencesKey("dynamic_color")

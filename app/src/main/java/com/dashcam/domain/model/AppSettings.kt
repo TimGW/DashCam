@@ -42,6 +42,8 @@ data class AppSettings(
     val speedUnit: SpeedUnit = SpeedUnit.KMH,
     val autoStartOnLaunch: Boolean = false,
     val keepScreenOn: Boolean = true,
+    /** Keep the viewfinder in a picture-in-picture window when leaving the app while recording. */
+    val pictureInPicture: Boolean = false,
     val vibrateOnStartStop: Boolean = true,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val dynamicColor: Boolean = true,
