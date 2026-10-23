@@ -1,0 +1,497 @@
+package com.dashcam.presentation.recordings
+
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Sort
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.LockOpen
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.VideoLibrary
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.dashcam.R
+import com.dashcam.domain.model.Recording
+import com.dashcam.domain.model.RecordingType
+import com.dashcam.domain.model.SortOrder
+import com.dashcam.domain.model.StorageStats
+import com.dashcam.presentation.common.RecordingThumbnail
+import com.dashcam.presentation.common.containerViewModelFactory
+import com.dashcam.presentation.common.formatBytes
+import com.dashcam.presentation.common.formatDateTime
+import com.dashcam.presentation.common.formatDuration
+import com.dashcam.presentation.common.shareRecording
+import com.dashcam.presentation.pin.PinLockScreen
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RecordingsScreen(
+    onBack: () -> Unit,
+    onOpen: (Recording) -> Unit,
+    viewModel: RecordingsViewModel = viewModel(
+        factory = containerViewModelFactory {
+            RecordingsViewModel(
+                observeRecordings = it.observeRecordings,
+                setRecordingsLocked = it.setRecordingsLocked,
+                deleteRecordings = it.deleteRecordings,
+                exporter = it.recordingExporter,
+                managePin = it.managePin,
+                pinSession = it.pinSession,
+                settingsRepository = it.settingsRepository,
+                recordingsRepository = it.recordingsRepository,
+            )
+        },
+    ),
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    if (state.pinRequired) {
+        PinLockScreen(onBack = onBack, onSubmit = viewModel::unlock)
+        return
+    }
+
+    val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    var pendingDelete by remember { mutableStateOf<Collection<String>?>(null) }
+
+    LaunchedEffect(Unit) {
+        viewModel.messages.collect { message ->
+            val text = when (message) {
+                RecordingsMessage.SavedToGallery -> context.getString(R.string.msg_saved_to_gallery)
+                RecordingsMessage.SaveFailed -> context.getString(R.string.msg_save_failed)
+                is RecordingsMessage.Deleted ->
+                    context.resources.getQuantityString(R.plurals.msg_deleted, message.count, message.count)
+            }
+            snackbarHostState.showSnackbar(text)
+        }
+    }
+
+    val selecting = state.selection.isNotEmpty()
+    val onItemClick: (Recording) -> Unit = { recording ->
+        if (selecting) viewModel.toggleSelection(recording.id) else onOpen(recording)
+    }
+    val itemActions = RecordingActions(
+        onLock = { viewModel.setLocked(listOf(it.id), !it.isLocked) },
+        onShare = { context.shareRecording(it) },
+        onSave = viewModel::saveToGallery,
+        onDelete = { pendingDelete = listOf(it.id) },
+    )
+
+    Scaffold(
+        topBar = {
+            if (selecting) {
+                SelectionTopBar(
+                    count = state.selection.size,
+                    onClear = viewModel::clearSelection,
+                    onLock = { viewModel.setLocked(state.selection, true) },
+                    onUnlock = { viewModel.setLocked(state.selection, false) },
+                    onDelete = { pendingDelete = state.selection },
+                )
+            } else {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.recordings_title)) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.cd_back))
+                        }
+                    },
+                    actions = { SortMenu(selected = state.sort, onSelect = viewModel::selectSort) },
+                )
+            }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+    ) { padding ->
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
+            PrimaryTabRow(selectedTabIndex = state.type.ordinal) {
+                Tab(
+                    selected = state.type == RecordingType.VIDEO,
+                    onClick = { viewModel.selectType(RecordingType.VIDEO) },
+                    text = { Text(stringResource(R.string.recordings_tab_videos)) },
+                )
+                Tab(
+                    selected = state.type == RecordingType.PHOTO,
+                    onClick = { viewModel.selectType(RecordingType.PHOTO) },
+                    text = { Text(stringResource(R.string.recordings_tab_photos)) },
+                )
+            }
+            state.stats?.let { StorageSummary(it, state.maxStorageGb) }
+            when {
+                state.isLoading -> Unit
+                state.items.isEmpty() -> EmptyState(state.type)
+                state.type == RecordingType.VIDEO -> LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
+                    items(state.items, key = { it.id }) { recording ->
+                        VideoRow(
+                            recording = recording,
+                            selected = recording.id in state.selection,
+                            onClick = { onItemClick(recording) },
+                            onLongClick = { viewModel.toggleSelection(recording.id) },
+                            actions = itemActions,
+                        )
+                    }
+                }
+                else -> LazyVerticalGrid(
+                    columns = GridCells.Adaptive(112.dp),
+                    contentPadding = PaddingValues(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    items(state.items, key = { it.id }) { recording ->
+                        PhotoTile(
+                            recording = recording,
+                            selected = recording.id in state.selection,
+                            onClick = { onItemClick(recording) },
+                            onLongClick = { viewModel.toggleSelection(recording.id) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    pendingDelete?.let { ids ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text(pluralStringResource(R.plurals.delete_title, ids.size, ids.size)) },
+            text = { Text(stringResource(R.string.delete_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.delete(ids.toList())
+                    pendingDelete = null
+                }) { Text(stringResource(R.string.action_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+}
+
+private data class RecordingActions(
+    val onLock: (Recording) -> Unit,
+    val onShare: (Recording) -> Unit,
+    val onSave: (Recording) -> Unit,
+    val onDelete: (Recording) -> Unit,
+)
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun VideoRow(
+    recording: Recording,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    actions: RecordingActions,
+) {
+    val context = LocalContext.current
+    ListItem(
+        modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick),
+        colors = if (selected) {
+            ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        } else {
+            ListItemDefaults.colors()
+        },
+        leadingContent = {
+            Box {
+                RecordingThumbnail(
+                    recording = recording,
+                    modifier = Modifier
+                        .width(112.dp)
+                        .aspectRatio(16f / 9f)
+                        .clip(RoundedCornerShape(8.dp)),
+                )
+                recording.durationMillis?.let {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.6f),
+                        contentColor = Color.White,
+                        shape = RoundedCornerShape(4.dp),
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(4.dp),
+                    ) {
+                        Text(
+                            formatDuration(it),
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                        )
+                    }
+                }
+                if (selected) {
+                    Icon(
+                        Icons.Filled.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(4.dp),
+                    )
+                }
+            }
+        },
+        headlineContent = { Text(formatDateTime(recording.createdAtMillis)) },
+        supportingContent = {
+            val parts = listOfNotNull(
+                recording.durationMillis?.let(::formatDuration),
+                formatBytes(context, recording.sizeBytes),
+            )
+            Text(parts.joinToString(" · "))
+        },
+        trailingContent = {
+            Box {
+                var menuOpen by remember { mutableStateOf(false) }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    IconButton(onClick = { menuOpen = true }) {
+                        Icon(Icons.Outlined.MoreVert, stringResource(R.string.cd_more_actions))
+                    }
+                    if (recording.isLocked) {
+                        Icon(
+                            Icons.Filled.Lock,
+                            contentDescription = stringResource(R.string.cd_locked),
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
+                RecordingMenu(
+                    expanded = menuOpen,
+                    recording = recording,
+                    actions = actions,
+                    onDismiss = { menuOpen = false },
+                )
+            }
+        },
+    )
+}
+
+@Composable
+private fun RecordingMenu(
+    expanded: Boolean,
+    recording: Recording,
+    actions: RecordingActions,
+    onDismiss: () -> Unit,
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text(stringResource(if (recording.isLocked) R.string.action_unlock else R.string.action_lock)) },
+            leadingIcon = { Icon(if (recording.isLocked) Icons.Outlined.LockOpen else Icons.Outlined.Lock, null) },
+            onClick = { onDismiss(); actions.onLock(recording) },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.action_share)) },
+            leadingIcon = { Icon(Icons.Outlined.Share, null) },
+            onClick = { onDismiss(); actions.onShare(recording) },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.action_save_to_gallery)) },
+            leadingIcon = { Icon(Icons.Outlined.Download, null) },
+            onClick = { onDismiss(); actions.onSave(recording) },
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.action_delete)) },
+            leadingIcon = { Icon(Icons.Outlined.Delete, null) },
+            onClick = { onDismiss(); actions.onDelete(recording) },
+        )
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun PhotoTile(recording: Recording, selected: Boolean, onClick: () -> Unit, onLongClick: () -> Unit) {
+    Box(
+        Modifier
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(8.dp))
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
+    ) {
+        RecordingThumbnail(recording, Modifier.fillMaxSize())
+        if (selected) {
+            Surface(color = MaterialTheme.colorScheme.primary.copy(alpha = 0.35f), modifier = Modifier.fillMaxSize()) {}
+            Icon(
+                Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(6.dp),
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectionTopBar(
+    count: Int,
+    onClear: () -> Unit,
+    onLock: () -> Unit,
+    onUnlock: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    TopAppBar(
+        title = { Text(stringResource(R.string.selection_count, count)) },
+        navigationIcon = {
+            IconButton(onClick = onClear) { Icon(Icons.Filled.Close, stringResource(R.string.cd_clear_selection)) }
+        },
+        actions = {
+            IconButton(onClick = onLock) { Icon(Icons.Outlined.Lock, stringResource(R.string.action_lock)) }
+            IconButton(onClick = onUnlock) { Icon(Icons.Outlined.LockOpen, stringResource(R.string.action_unlock)) }
+            IconButton(onClick = onDelete) { Icon(Icons.Outlined.Delete, stringResource(R.string.action_delete)) }
+        },
+        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+    )
+}
+
+@Composable
+private fun SortMenu(selected: SortOrder, onSelect: (SortOrder) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { expanded = true }) {
+            Icon(Icons.AutoMirrored.Filled.Sort, stringResource(R.string.cd_sort))
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            SortOrder.entries.forEach { order ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(order.labelRes())) },
+                    leadingIcon = { RadioButton(selected = order == selected, onClick = null) },
+                    onClick = {
+                        expanded = false
+                        onSelect(order)
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StorageSummary(stats: StorageStats, maxStorageGb: Int) {
+    val context = LocalContext.current
+    val limitBytes = if (maxStorageGb == 0) null else maxStorageGb * 1_000_000_000L
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Text(
+            text = if (limitBytes != null) {
+                stringResource(
+                    R.string.storage_used_of_limit,
+                    formatBytes(context, stats.recordingsBytes),
+                    formatBytes(context, limitBytes),
+                )
+            } else {
+                stringResource(R.string.storage_used, formatBytes(context, stats.recordingsBytes))
+            },
+            style = MaterialTheme.typography.labelLarge,
+        )
+        LinearProgressIndicator(
+            progress = {
+                val total = limitBytes ?: (stats.recordingsBytes + stats.freeBytes).coerceAtLeast(1)
+                (stats.recordingsBytes.toFloat() / total).coerceIn(0f, 1f)
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Text(
+            text = stringResource(R.string.storage_free, formatBytes(context, stats.freeBytes)),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun EmptyState(type: RecordingType) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            Icons.Outlined.VideoLibrary,
+            contentDescription = null,
+            modifier = Modifier.size(56.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = stringResource(
+                if (type == RecordingType.VIDEO) R.string.recordings_empty_videos else R.string.recordings_empty_photos,
+            ),
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 16.dp),
+        )
+    }
+}
+
+private fun SortOrder.labelRes(): Int = when (this) {
+    SortOrder.NEWEST -> R.string.sort_newest
+    SortOrder.OLDEST -> R.string.sort_oldest
+    SortOrder.NAME -> R.string.sort_name
+    SortOrder.LARGEST -> R.string.sort_largest
+    SortOrder.LONGEST -> R.string.sort_longest
+}

@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DashCam</string>
+
+    <!-- Actions -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_lock">Lock</string>
+    <string name="action_unlock">Unlock</string>
+    <string name="action_ok">OK</string>
+    <string name="action_share">Share</string>
+    <string name="action_save_to_gallery">Save to gallery</string>
+    <string name="action_stop">Stop</string>
+
+    <!-- Content descriptions -->
+    <string name="cd_back">Back</string>
+    <string name="cd_backspace">Delete digit</string>
+    <string name="cd_clear_selection">Clear selection</string>
+    <string name="cd_confirm">Confirm</string>
+    <string name="cd_flash">Flashlight</string>
+    <string name="cd_lock_clip">Lock current clip</string>
+    <string name="cd_unlock_clip">Unlock current clip</string>
+    <string name="cd_locked">Locked</string>
+    <string name="cd_more_actions">More actions</string>
+    <string name="cd_mute">Mute microphone</string>
+    <string name="cd_unmute">Unmute microphone</string>
+    <string name="cd_recordings">Recordings</string>
+    <string name="cd_settings">Settings</string>
+    <string name="cd_sort">Sort</string>
+    <string name="cd_start_recording">Start recording</string>
+    <string name="cd_stop_recording">Stop recording</string>
+    <string name="cd_switch_camera">Switch camera</string>
+    <string name="cd_take_photo">Take photo</string>
+
+    <!-- Record screen -->
+    <string name="record_status_rec">REC %1$s</string>
+    <string name="record_status_gps">GPS</string>
+    <string name="record_status_no_gps">No GPS</string>
+    <string name="unit_kmh">km/h</string>
+    <string name="unit_mph">mph</string>
+    <string name="permission_camera_title">Camera access needed</string>
+    <string name="permission_camera_body">DashCam needs the camera to record. Microphone, location and notifications are optional and add audio, speed and a recording status.</string>
+    <string name="permission_grant">Grant access</string>
+    <string name="msg_clip_locked">Clip locked. It won\'t be overwritten.</string>
+    <string name="msg_clip_unlocked">Clip unlocked</string>
+    <string name="msg_impact_detected">Impact detected. This clip and the next one are locked.</string>
+    <string name="msg_photo_saved">Photo saved</string>
+    <string name="msg_photo_failed">Couldn\'t take a photo</string>
+    <string name="msg_storage_full">Storage is full. Recording stopped.</string>
+    <string name="msg_stop_to_switch_camera">Stop recording to switch cameras</string>
+    <string name="msg_camera_error">The camera stopped unexpectedly. Recording stopped.</string>
+
+    <!-- Notification / tile -->
+    <string name="notification_channel_recording">Recording</string>
+    <string name="notification_recording_title">DashCam is recording</string>
+    <string name="notification_recording_text">Recording in a loop</string>
+    <string name="notification_recording_locked">Current clip is locked</string>
+    <string name="tile_record">Record</string>
+    <string name="tile_stop">Stop recording</string>
+
+    <!-- Recordings -->
+    <string name="recordings_title">Recordings</string>
+    <string name="recordings_tab_videos">Videos</string>
+    <string name="recordings_tab_photos">Photos</string>
+    <string name="recordings_empty_videos">No videos yet. Tap the record button to start.</string>
+    <string name="recordings_empty_photos">No photos yet</string>
+    <string name="selection_count">%1$d selected</string>
+    <string name="delete_body">Deleted recordings can\'t be recovered.</string>
+    <plurals name="delete_title">
+        <item quantity="one">Delete %1$d recording?</item>
+        <item quantity="other">Delete %1$d recordings?</item>
+    </plurals>
+    <plurals name="msg_deleted">
+        <item quantity="one">%1$d recording deleted</item>
+        <item quantity="other">%1$d recordings deleted</item>
+    </plurals>
+    <string name="msg_saved_to_gallery">Saved to gallery</string>
+    <string name="msg_save_failed">Couldn\'t save to gallery</string>
+    <string name="sort_newest">Newest first</string>
+    <string name="sort_oldest">Oldest first</string>
+    <string name="sort_name">Name</string>
+    <string name="sort_largest">Largest first</string>
+    <string name="sort_longest">Longest first</string>
+    <string name="storage_used">%1$s used</string>
+    <string name="storage_used_of_limit">%1$s of %2$s used</string>
+    <string name="storage_free">%1$s free on device</string>
+    <string name="storage_unlimited">Unlimited</string>
+    <string name="storage_gb">%1$d GB</string>
+
+    <!-- PIN -->
+    <string name="pin_lock_title">Recordings lock</string>
+    <string name="pin_enter">Enter your PIN</string>
+    <string name="pin_incorrect">Incorrect PIN</string>
+    <string name="pin_current">Current PIN</string>
+    <string name="pin_new">New PIN</string>
+    <string name="pin_confirm">Confirm PIN</string>
+    <string name="pin_mismatch">PINs don\'t match</string>
+    <string name="pin_length_error">Use 4 to 8 digits</string>
+    <string name="pin_forget_warning">If you forget your PIN, you won\'t be able to open your recordings in the app.</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_section_video">Video</string>
+    <string name="settings_section_storage">Storage</string>
+    <string name="settings_section_safety">Safety</string>
+    <string name="settings_section_location">Location data</string>
+    <string name="settings_section_behavior">Behavior</string>
+    <string name="settings_section_privacy">Privacy</string>
+    <string name="settings_section_appearance">Appearance</string>
+    <string name="settings_section_about">About</string>
+    <string name="settings_resolution">Resolution</string>
+    <string name="settings_camera">Camera</string>
+    <string name="settings_audio">Record audio</string>
+    <string name="settings_clip_length">Clip length</string>
+    <string name="settings_loop_recording">Loop recording</string>
+    <string name="settings_loop_recording_summary">Delete the oldest unlocked clips when storage runs out</string>
+    <string name="settings_max_storage">Maximum storage for recordings</string>
+    <string name="settings_storage_location">Storage location</string>
+    <string name="settings_storage_location_summary">App storage (Android/data/com.dashcam). Use \"Save to gallery\" to keep a copy in your photos.</string>
+    <string name="settings_g_sensor">G-sensor</string>
+    <string name="settings_g_sensor_summary">Lock the clip when an impact is detected</string>
+    <string name="settings_g_sensor_sensitivity">G-sensor sensitivity</string>
+    <string name="settings_vibrate_on_impact">Vibrate on impact</string>
+    <string name="settings_subtitles">Subtitle file</string>
+    <string name="settings_subtitles_summary">Save date, speed and coordinates as subtitles (.srt) shown during playback</string>
+    <string name="settings_gpx">GPX track</string>
+    <string name="settings_gpx_summary">Save a GPS track (.gpx) for each clip</string>
+    <string name="settings_speed_unit">Speed unit</string>
+    <string name="settings_auto_start">Start recording on launch</string>
+    <string name="settings_auto_start_summary">Begin recording as soon as the app opens</string>
+    <string name="settings_keep_screen_on">Keep screen on</string>
+    <string name="settings_vibrate_start_stop">Vibrate when recording starts or stops</string>
+    <string name="settings_battery">Battery optimization</string>
+    <string name="settings_battery_summary">Exclude DashCam so long background recordings aren\'t stopped</string>
+    <string name="settings_pin_set">Set PIN</string>
+    <string name="settings_pin_summary">Require a PIN to open recordings</string>
+    <string name="settings_pin_change">Change PIN</string>
+    <string name="settings_pin_remove">Remove PIN</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_dynamic_color">Dynamic color</string>
+    <string name="settings_dynamic_color_summary">Use colors from your wallpaper</string>
+    <string name="settings_version">Version</string>
+    <string name="camera_back">Back camera</string>
+    <string name="camera_front">Front camera</string>
+    <string name="quality_sd">SD (480p)</string>
+    <string name="quality_hd">HD (720p)</string>
+    <string name="quality_fhd">Full HD (1080p)</string>
+    <string name="quality_uhd">4K (2160p)</string>
+    <string name="sensitivity_very_low">Very low</string>
+    <string name="sensitivity_low">Low</string>
+    <string name="sensitivity_normal">Normal</string>
+    <string name="sensitivity_high">High</string>
+    <string name="sensitivity_very_high">Very high</string>
+    <string name="theme_system">System default</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <plurals name="minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+</resources>
