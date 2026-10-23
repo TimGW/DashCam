@@ -37,6 +37,7 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
         return AppSettings(
             videoQuality = enumOf(this[Keys.videoQuality], defaults.videoQuality),
             cameraFacing = enumOf(this[Keys.cameraFacing], defaults.cameraFacing),
+            separateCameraFiles = this[Keys.separateCameraFiles] ?: defaults.separateCameraFiles,
             recordAudio = this[Keys.recordAudio] ?: defaults.recordAudio,
             segmentMinutes = this[Keys.segmentMinutes] ?: defaults.segmentMinutes,
             loopRecording = this[Keys.loopRecording] ?: defaults.loopRecording,
@@ -59,6 +60,7 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
     private fun MutablePreferences.write(s: AppSettings) {
         this[Keys.videoQuality] = s.videoQuality.name
         this[Keys.cameraFacing] = s.cameraFacing.name
+        this[Keys.separateCameraFiles] = s.separateCameraFiles
         this[Keys.recordAudio] = s.recordAudio
         this[Keys.segmentMinutes] = s.segmentMinutes
         this[Keys.loopRecording] = s.loopRecording
@@ -83,6 +85,7 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
     private object Keys {
         val videoQuality = stringPreferencesKey("video_quality")
         val cameraFacing = stringPreferencesKey("camera_facing")
+        val separateCameraFiles = booleanPreferencesKey("separate_camera_files")
         val recordAudio = booleanPreferencesKey("record_audio")
         val segmentMinutes = intPreferencesKey("segment_minutes")
         val loopRecording = booleanPreferencesKey("loop_recording")

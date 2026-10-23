@@ -19,13 +19,15 @@ interface RecordingsRepository {
     fun observeRecordings(): Flow<List<Recording>>
     suspend fun getRecordings(): List<Recording>
     suspend fun createVideoFile(): String
+    /** Path for the front camera's video recorded alongside [videoPath]. */
+    fun secondaryVideoFile(videoPath: String): String
     suspend fun createPhotoFile(): String
     /** Returns the new id (path) of the recording. */
     suspend fun setLocked(id: String, locked: Boolean): String
     suspend fun delete(ids: Collection<String>)
     suspend fun storageStats(): StorageStats
-    /** The file currently being written; hidden from listings. */
-    fun setInProgress(id: String?)
+    /** The files currently being written; hidden from listings. */
+    fun setInProgress(ids: Set<String>)
     fun refresh()
 }
 

@@ -10,6 +10,7 @@ import com.dashcam.domain.model.CameraState
 import com.dashcam.domain.model.LocationSample
 import com.dashcam.domain.model.RecorderEvent
 import com.dashcam.domain.model.RecorderState
+import com.dashcam.domain.model.VideoQuality
 import com.dashcam.domain.repository.CameraController
 import com.dashcam.domain.repository.LocationRepository
 import com.dashcam.domain.repository.RecorderController
@@ -50,6 +51,7 @@ class RecordViewModel(
 ) : ViewModel() {
 
     private val cameraPermission = MutableStateFlow(false)
+    private val displayRotation = MutableStateFlow<Int?>(null)
     private val localEvents = MutableSharedFlow<RecorderEvent>(extraBufferCapacity = 4)
     private var autoStartHandled = false
 
@@ -74,12 +76,13 @@ class RecordViewModel(
 
     init {
         viewModelScope.launch {
-            combine(cameraPermission, settingsRepository.settings) { granted, settings ->
-                if (granted) settings.cameraFacing to settings.videoQuality else null
+            // Rotation is part of the key: the camera rebinds the composited dual view when it changes.
+            combine(cameraPermission, settingsRepository.settings, displayRotation) { granted, settings, rotation ->
+                if (granted) CameraConfig(settings.cameraFacing, settings.videoQuality, settings.separateCameraFiles, rotation) else null
             }
                 .filterNotNull()
                 .distinctUntilChanged()
-                .collect { (facing, quality) -> preview.configure(facing, quality) }
+                .collect { preview.configure(it.facing, it.quality, it.separateFiles) }
         }
     }
 
@@ -126,7 +129,12 @@ class RecordViewModel(
         }
         viewModelScope.launch {
             settingsRepository.update {
-                it.copy(cameraFacing = if (it.cameraFacing == CameraFacing.BACK) CameraFacing.FRONT else CameraFacing.BACK)
+                val next = when (it.cameraFacing) {
+                    CameraFacing.BACK -> CameraFacing.FRONT
+                    CameraFacing.FRONT -> if (preview.supportsDualCamera) CameraFacing.BOTH else CameraFacing.BACK
+                    CameraFacing.BOTH -> CameraFacing.BACK
+                }
+                it.copy(cameraFacing = next)
             }
         }
     }
@@ -135,7 +143,19 @@ class RecordViewModel(
 
     fun attachPreview(surfaceProvider: Preview.SurfaceProvider?) = preview.attachPreview(surfaceProvider)
 
+    fun attachSecondaryPreview(surfaceProvider: Preview.SurfaceProvider?) = preview.attachSecondaryPreview(surfaceProvider)
+
     fun setPreviewVisible(visible: Boolean) = preview.setPreviewVisible(visible)
 
-    fun setTargetRotation(rotation: Int) = preview.setTargetRotation(rotation)
+    fun setTargetRotation(rotation: Int) {
+        preview.setTargetRotation(rotation)
+        displayRotation.value = rotation
+    }
+
+    private data class CameraConfig(
+        val facing: CameraFacing,
+        val quality: VideoQuality,
+        val separateFiles: Boolean,
+        val rotation: Int?,
+    )
 }

@@ -59,7 +59,7 @@ class RecordingSession(
         sessionJob?.takeIf { it.isActive }?.let { return it }
         return scope.launch {
             val settings = settingsRepository.settings.first()
-            camera.configure(settings.cameraFacing, settings.videoQuality)
+            camera.configure(settings.cameraFacing, settings.videoQuality, settings.separateCameraFiles)
             if (!camera.state.value.isReady) {
                 _events.tryEmit(RecorderEvent.CameraError(camera.state.value.error))
                 return@launch
@@ -137,15 +137,17 @@ class RecordingSession(
                 return@coroutineScope
             }
             val path = recordings.createVideoFile()
+            val secondaryPath = if (camera.recordsSecondaryVideo) recordings.secondaryVideoFile(path) else null
+            val paths = listOfNotNull(path, secondaryPath)
             val finalized = CompletableDeferred<String?>()
-            val started = camera.startSegment(File(path), settings.recordAudio, muted) { error ->
+            val started = camera.startSegment(File(path), secondaryPath?.let(::File), settings.recordAudio, muted) { error ->
                 finalized.complete(error)
             }
             if (!started) {
                 _events.tryEmit(RecorderEvent.CameraError(null))
                 return@coroutineScope
             }
-            recordings.setInProgress(path)
+            recordings.setInProgress(paths.toSet())
             lockCurrent = lockNext
             lockNext = false
             _state.update {
@@ -157,6 +159,12 @@ class RecordingSession(
             } else {
                 null
             }
+            // The front video gets its own subtitles; one GPX track per segment is enough.
+            val secondaryTelemetry = if (secondaryPath != null && settings.writeSubtitles) {
+                launch { TelemetryWriter(secondaryPath, settings.copy(writeGpx = false), location.location).run() }
+            } else {
+                null
+            }
             // Completes early only if the camera finalized the file on its own (an error).
             val earlyFinish = try {
                 withTimeoutOrNull(segmentMillis) { finalized.await() ?: "Recording stopped unexpectedly" }
@@ -165,8 +173,9 @@ class RecordingSession(
                     camera.stopSegment()
                     withTimeoutOrNull(FINALIZE_TIMEOUT_MS) { finalized.await() }
                     telemetry?.cancelAndJoin()
-                    recordings.setInProgress(null)
-                    if (lockCurrent) recordings.setLocked(path, true)
+                    secondaryTelemetry?.cancelAndJoin()
+                    recordings.setInProgress(emptySet())
+                    if (lockCurrent) paths.forEach { recordings.setLocked(it, true) }
                     recordings.refresh()
                 }
             }

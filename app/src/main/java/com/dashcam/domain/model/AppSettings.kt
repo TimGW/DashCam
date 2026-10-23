@@ -2,7 +2,8 @@ package com.dashcam.domain.model
 
 enum class VideoQuality { SD, HD, FHD, UHD }
 
-enum class CameraFacing { BACK, FRONT }
+/** [BOTH] records the back camera with the front camera as a picture-in-picture inset. */
+enum class CameraFacing { BACK, FRONT, BOTH }
 
 enum class SpeedUnit { KMH, MPH }
 
@@ -20,6 +21,8 @@ enum class GSensorSensitivity(val thresholdG: Float) {
 data class AppSettings(
     val videoQuality: VideoQuality = VideoQuality.FHD,
     val cameraFacing: CameraFacing = CameraFacing.BACK,
+    /** With [CameraFacing.BOTH]: save the front camera as its own video instead of an inset. */
+    val separateCameraFiles: Boolean = false,
     val recordAudio: Boolean = true,
     val segmentMinutes: Int = 3,
     val loopRecording: Boolean = true,

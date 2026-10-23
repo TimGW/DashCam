@@ -28,6 +28,10 @@ data class CameraState(
     val hasFlash: Boolean = false,
     val torchOn: Boolean = false,
     val photoSupported: Boolean = true,
+    /** The front camera has its own viewfinder (both cameras recording to separate files). */
+    val hasSecondaryPreview: Boolean = false,
+    /** The preview has the front camera composited in a corner, so it must not be cropped. */
+    val hasCompositedPreview: Boolean = false,
     val zoomRatio: Float = 1f,
     val error: String? = null,
 )

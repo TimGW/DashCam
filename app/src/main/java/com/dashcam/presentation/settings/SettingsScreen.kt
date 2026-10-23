@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Subtitles
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Vibration
+import androidx.compose.material.icons.outlined.VideoLibrary
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -53,6 +54,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dashcam.R
+import com.dashcam.data.camera.supportsDualCamera
 import com.dashcam.domain.model.AppSettings
 import com.dashcam.domain.model.CameraFacing
 import com.dashcam.domain.model.GSensorSensitivity
@@ -114,16 +116,8 @@ private fun LazyListScope.settingsContent(
             onSelect = { q -> update { it.copy(videoQuality = q) } },
         )
     }
-    item {
-        ChoiceSetting(
-            title = stringResource(R.string.settings_camera),
-            icon = Icons.Outlined.Cameraswitch,
-            options = CameraFacing.entries,
-            selected = s.cameraFacing,
-            label = { stringResource(if (it == CameraFacing.BACK) R.string.camera_back else R.string.camera_front) },
-            onSelect = { f -> update { it.copy(cameraFacing = f) } },
-        )
-    }
+    item { CameraSetting(s, update) }
+    item { SeparateCameraFilesSetting(s, update) }
     item {
         SwitchSetting(
             title = stringResource(R.string.settings_audio),
@@ -315,6 +309,37 @@ private fun LazyListScope.settingsContent(
 }
 
 @Composable
+private fun CameraSetting(s: AppSettings, update: ((AppSettings) -> AppSettings) -> Unit) {
+    val context = LocalContext.current
+    // "Both cameras" is only offered on devices that can stream front and back at once.
+    val options = remember {
+        if (context.supportsDualCamera()) CameraFacing.entries else CameraFacing.entries - CameraFacing.BOTH
+    }
+    ChoiceSetting(
+        title = stringResource(R.string.settings_camera),
+        icon = Icons.Outlined.Cameraswitch,
+        options = options,
+        selected = s.cameraFacing,
+        label = { stringResource(it.labelRes()) },
+        onSelect = { f -> update { it.copy(cameraFacing = f) } },
+    )
+}
+
+@Composable
+private fun SeparateCameraFilesSetting(s: AppSettings, update: ((AppSettings) -> AppSettings) -> Unit) {
+    val context = LocalContext.current
+    if (!remember { context.supportsDualCamera() }) return
+    SwitchSetting(
+        title = stringResource(R.string.settings_separate_camera_files),
+        summary = stringResource(R.string.settings_separate_camera_files_summary),
+        icon = Icons.Outlined.VideoLibrary,
+        checked = s.separateCameraFiles,
+        onCheckedChange = { v -> update { it.copy(separateCameraFiles = v) } },
+        enabled = s.cameraFacing == CameraFacing.BOTH,
+    )
+}
+
+@Composable
 private fun BatteryOptimizationSetting() {
     val context = LocalContext.current
     ActionSetting(
@@ -347,6 +372,12 @@ private fun VideoQuality.labelRes() = when (this) {
     VideoQuality.HD -> R.string.quality_hd
     VideoQuality.FHD -> R.string.quality_fhd
     VideoQuality.UHD -> R.string.quality_uhd
+}
+
+private fun CameraFacing.labelRes() = when (this) {
+    CameraFacing.BACK -> R.string.camera_back
+    CameraFacing.FRONT -> R.string.camera_front
+    CameraFacing.BOTH -> R.string.camera_both
 }
 
 private fun GSensorSensitivity.labelRes() = when (this) {

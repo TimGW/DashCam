@@ -3,6 +3,7 @@ package com.dashcam.presentation.record
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,8 +21,11 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
@@ -182,6 +186,7 @@ fun RecordScreen(
             CameraPreview(
                 onSurfaceProvider = viewModel::attachPreview,
                 onZoom = viewModel::zoom,
+                fitWholeFrame = state.camera.hasCompositedPreview,
                 modifier = Modifier.fillMaxSize(),
             )
         } else if (permissionsRequested) {
@@ -198,6 +203,19 @@ fun RecordScreen(
                 onOpenRecordings = onOpenRecordings,
                 onOpenSettings = onOpenSettings,
             )
+            if (state.camera.hasSecondaryPreview) {
+                val landscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+                SecondaryCameraPreview(
+                    onSurfaceProvider = viewModel::attachSecondaryPreview,
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                        .padding(end = 12.dp)
+                        .width(if (landscape) 160.dp else 96.dp)
+                        .aspectRatio(if (landscape) 16f / 9f else 9f / 16f)
+                        .clip(RoundedCornerShape(12.dp)),
+                )
+            }
             Spacer(Modifier.weight(1f))
             BottomOverlay(
                 state = state,
@@ -217,6 +235,31 @@ fun RecordScreen(
 private fun CameraPreview(
     onSurfaceProvider: (androidx.camera.core.Preview.SurfaceProvider?) -> Unit,
     onZoom: (Float) -> Unit,
+    fitWholeFrame: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    AndroidView(
+        factory = { context ->
+            PreviewView(context).apply {
+                implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                onSurfaceProvider(surfaceProvider)
+            }
+        },
+        // Filling the screen crops the frame's edges, which would cut off a composited inset.
+        update = { view ->
+            view.scaleType = if (fitWholeFrame) PreviewView.ScaleType.FIT_CENTER else PreviewView.ScaleType.FILL_CENTER
+        },
+        onRelease = { onSurfaceProvider(null) },
+        modifier = modifier.pointerInput(Unit) {
+            detectTransformGestures { _, _, zoom, _ -> if (zoom != 1f) onZoom(zoom) }
+        },
+    )
+}
+
+/** Front camera viewfinder while both cameras record to separate files. */
+@Composable
+private fun SecondaryCameraPreview(
+    onSurfaceProvider: (androidx.camera.core.Preview.SurfaceProvider?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     AndroidView(
@@ -228,9 +271,7 @@ private fun CameraPreview(
             }
         },
         onRelease = { onSurfaceProvider(null) },
-        modifier = modifier.pointerInput(Unit) {
-            detectTransformGestures { _, _, zoom, _ -> if (zoom != 1f) onZoom(zoom) }
-        },
+        modifier = modifier,
     )
 }
 

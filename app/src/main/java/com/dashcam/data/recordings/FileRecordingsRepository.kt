@@ -22,7 +22,8 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Stores recordings in the app-specific external storage (no storage permission needed).
  * Lock state is encoded in the file name so it survives reinstalls of the database-free app;
- * sidecar telemetry files (.srt/.gpx) share the video's base name.
+ * sidecar telemetry files (.srt/.gpx) share the video's base name. A front camera video recorded
+ * alongside the main one is a separate recording with a "_front" suffix.
  */
 class FileRecordingsRepository(context: Context) : RecordingsRepository {
 
@@ -32,7 +33,7 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
     private val durationCache = ConcurrentHashMap<String, Pair<Long, Long>>()
 
     @Volatile
-    private var inProgress: String? = null
+    private var inProgress: Set<String> = emptySet()
 
     override fun observeRecordings(): Flow<List<Recording>> =
         refreshSignal.map { scan() }.flowOn(Dispatchers.IO)
@@ -41,6 +42,11 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
 
     override suspend fun createVideoFile(): String = withContext(Dispatchers.IO) {
         File(videoDir.mkdirsIfNeeded(), "$PREFIX${timestamp(VIDEO_PATTERN)}.$VIDEO_EXT").absolutePath
+    }
+
+    override fun secondaryVideoFile(videoPath: String): String {
+        val file = File(videoPath)
+        return File(file.parentFile, "${file.nameWithoutExtension}$FRONT_SUFFIX.${file.extension}").absolutePath
     }
 
     override suspend fun createPhotoFile(): String = withContext(Dispatchers.IO) {
@@ -74,8 +80,8 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
         )
     }
 
-    override fun setInProgress(id: String?) {
-        inProgress = id
+    override fun setInProgress(ids: Set<String>) {
+        inProgress = ids
         refresh()
     }
 
@@ -85,7 +91,7 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
 
     private fun scan(): List<Recording> {
         val videos = videoDir.listFiles { f -> f.extension == VIDEO_EXT }.orEmpty()
-            .filter { it.absolutePath != inProgress && it.length() > 0 }
+            .filter { it.absolutePath !in inProgress && it.length() > 0 }
             .map { it.toRecording(RecordingType.VIDEO) }
         val photos = photoDir.listFiles { f -> f.extension == PHOTO_EXT }.orEmpty()
             .filter { it.length() > 0 }
@@ -128,7 +134,7 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
     }
 
     private fun parseTimestamp(base: String): Long? {
-        val stamp = base.removePrefix(PREFIX).removeSuffix(LOCKED_SUFFIX)
+        val stamp = base.removePrefix(PREFIX).removeSuffix(LOCKED_SUFFIX).removeSuffix(FRONT_SUFFIX)
         val pattern = if (stamp.length == PHOTO_PATTERN.length) PHOTO_PATTERN else VIDEO_PATTERN
         return runCatching { SimpleDateFormat(pattern, Locale.US).parse(stamp)?.time }.getOrNull()
     }
@@ -140,6 +146,7 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
     private companion object {
         const val PREFIX = "DC_"
         const val LOCKED_SUFFIX = "_locked"
+        const val FRONT_SUFFIX = "_front"
         const val VIDEO_EXT = "mp4"
         const val PHOTO_EXT = "jpg"
         const val VIDEO_PATTERN = "yyyyMMdd_HHmmss"
