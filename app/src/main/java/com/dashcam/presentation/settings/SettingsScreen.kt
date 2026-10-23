@@ -3,7 +3,9 @@ package com.dashcam.presentation.settings
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.net.Uri
 import android.provider.Settings
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.lazy.LazyColumn
@@ -19,17 +21,21 @@ import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.HighQuality
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Layers
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.LockOpen
 import androidx.compose.material.icons.outlined.Loop
 import androidx.compose.material.icons.outlined.Mic
+import androidx.compose.material.icons.outlined.Navigation
+import androidx.compose.material.icons.outlined.NotificationsActive
 import androidx.compose.material.icons.outlined.Password
 import androidx.compose.material.icons.outlined.PictureInPictureAlt
 import androidx.compose.material.icons.outlined.PlayCircle
 import androidx.compose.material.icons.outlined.Route
 import androidx.compose.material.icons.outlined.Sensors
 import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.StopCircle
 import androidx.compose.material.icons.outlined.Storage
 import androidx.compose.material.icons.outlined.Subtitles
 import androidx.compose.material.icons.outlined.Timer
@@ -55,6 +61,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dashcam.R
@@ -62,11 +69,13 @@ import com.dashcam.data.camera.supportsDualCamera
 import com.dashcam.domain.model.AppSettings
 import com.dashcam.domain.model.CameraFacing
 import com.dashcam.domain.model.GSensorSensitivity
+import com.dashcam.domain.model.NavigationStopDelay
 import com.dashcam.domain.model.SpeedUnit
 import com.dashcam.domain.model.ThemeMode
 import com.dashcam.domain.model.VideoAspectRatio
 import com.dashcam.domain.model.VideoQuality
 import com.dashcam.presentation.common.containerViewModelFactory
+import com.dashcam.service.NavigationListenerService
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -260,6 +269,7 @@ private fun LazyListScope.settingsContent(
             onCheckedChange = { v -> update { it.copy(autoStartOnLaunch = v) } },
         )
     }
+    item { NavigationRecordingSettings(s, update) }
     item {
         SwitchSetting(
             title = stringResource(R.string.settings_keep_screen_on),
@@ -377,6 +387,71 @@ private fun PictureInPictureSetting(s: AppSettings, update: ((AppSettings) -> Ap
     )
 }
 
+/** Auto-record on navigation, plus the special accesses it needs (re-checked on resume). */
+@Composable
+private fun NavigationRecordingSettings(s: AppSettings, update: ((AppSettings) -> AppSettings) -> Unit) {
+    val context = LocalContext.current
+    var listenerEnabled by remember { mutableStateOf(NavigationListenerService.isEnabled(context)) }
+    var canDrawOverlays by remember { mutableStateOf(Settings.canDrawOverlays(context)) }
+    LifecycleResumeEffect(Unit) {
+        listenerEnabled = NavigationListenerService.isEnabled(context)
+        canDrawOverlays = Settings.canDrawOverlays(context)
+        onPauseOrDispose {}
+    }
+    val openNotificationAccess = {
+        val detail = Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
+            Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME,
+            NavigationListenerService.componentName(context).flattenToString(),
+        )
+        runCatching { context.startActivity(detail) }
+            .recoverCatching { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+        Unit
+    }
+    Column {
+        SwitchSetting(
+            title = stringResource(R.string.settings_auto_record_navigation),
+            summary = stringResource(R.string.settings_auto_record_navigation_summary),
+            icon = Icons.Outlined.Navigation,
+            checked = s.autoRecordOnNavigation,
+            onCheckedChange = { v ->
+                update { it.copy(autoRecordOnNavigation = v) }
+                if (v && !listenerEnabled) openNotificationAccess()
+            },
+        )
+        if (!s.autoRecordOnNavigation) return@Column
+        if (!listenerEnabled) {
+            ActionSetting(
+                title = stringResource(R.string.settings_notification_access),
+                summary = stringResource(R.string.settings_notification_access_summary),
+                icon = Icons.Outlined.NotificationsActive,
+                onClick = openNotificationAccess,
+            )
+        }
+        ActionSetting(
+            title = stringResource(R.string.settings_start_without_tap),
+            summary = stringResource(
+                if (canDrawOverlays) R.string.settings_start_without_tap_on else R.string.settings_start_without_tap_off,
+            ),
+            icon = Icons.Outlined.Layers,
+            onClick = {
+                runCatching {
+                    context.startActivity(
+                        Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")),
+                    )
+                }
+            },
+        )
+        ChoiceSetting(
+            title = stringResource(R.string.settings_stop_when_navigation_ends),
+            icon = Icons.Outlined.StopCircle,
+            options = NavigationStopDelay.entries,
+            selected = s.navigationStopDelay,
+            label = { stringResource(it.labelRes()) },
+            onSelect = { d -> update { it.copy(navigationStopDelay = d) } },
+        )
+    }
+}
+
 @Composable
 private fun BatteryOptimizationSetting() {
     val context = LocalContext.current
@@ -421,6 +496,14 @@ private fun CameraFacing.labelRes() = when (this) {
 private fun VideoAspectRatio.labelRes() = when (this) {
     VideoAspectRatio.RATIO_16_9 -> R.string.aspect_16_9
     VideoAspectRatio.RATIO_4_3 -> R.string.aspect_4_3
+}
+
+private fun NavigationStopDelay.labelRes() = when (this) {
+    NavigationStopDelay.NEVER -> R.string.navigation_stop_never
+    NavigationStopDelay.IMMEDIATELY -> R.string.navigation_stop_immediately
+    NavigationStopDelay.ONE_MINUTE -> R.string.navigation_stop_one_minute
+    NavigationStopDelay.TWO_MINUTES -> R.string.navigation_stop_two_minutes
+    NavigationStopDelay.FIVE_MINUTES -> R.string.navigation_stop_five_minutes
 }
 
 private fun GSensorSensitivity.labelRes() = when (this) {

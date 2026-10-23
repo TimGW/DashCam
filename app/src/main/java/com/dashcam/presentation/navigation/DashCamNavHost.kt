@@ -3,6 +3,7 @@ package com.dashcam.presentation.navigation
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -34,8 +35,14 @@ data class PhotoDestination(val path: String)
 fun DashCamNavHost(
     startRecordingRequest: Boolean,
     onStartRecordingHandled: () -> Unit,
+    minimizeAfterStart: Boolean,
+    onMinimized: (enteringPictureInPicture: Boolean) -> Unit,
 ) {
     val navController = rememberNavController()
+    // Recording starts from the record screen, so a start request (tile, navigation) returns there.
+    LaunchedEffect(startRecordingRequest) {
+        if (startRecordingRequest) navController.popBackStack(RecordDestination, inclusive = false)
+    }
     NavHost(
         navController = navController,
         startDestination = RecordDestination,
@@ -48,6 +55,8 @@ fun DashCamNavHost(
                 onOpenSettings = { navController.navigate(SettingsDestination) },
                 startRecordingRequest = startRecordingRequest,
                 onStartRecordingHandled = onStartRecordingHandled,
+                minimizeAfterStart = minimizeAfterStart,
+                onMinimized = onMinimized,
             )
         }
         composable<RecordingsDestination> {

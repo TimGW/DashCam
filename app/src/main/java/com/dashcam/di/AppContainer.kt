@@ -5,6 +5,7 @@ import com.dashcam.data.camera.CameraEngine
 import com.dashcam.data.location.AndroidLocationRepository
 import com.dashcam.data.recorder.HapticFeedback
 import com.dashcam.data.recorder.InMemoryPinSession
+import com.dashcam.data.recorder.NavigationAutoRecorder
 import com.dashcam.data.recorder.RecordingSession
 import com.dashcam.data.recorder.ServiceRecorderController
 import com.dashcam.data.recordings.FileRecordingsRepository
@@ -54,6 +55,7 @@ class AppContainer(app: Application) {
         scope = appScope,
     )
     val recorderController: RecorderController = ServiceRecorderController(app, recordingSession)
+    val navigationAutoRecorder = NavigationAutoRecorder(app, settingsRepository, recorderController, appScope)
 
     val observeRecordings = ObserveRecordingsUseCase(recordingsRepository)
     val setRecordingsLocked = SetRecordingsLockedUseCase(recordingsRepository)

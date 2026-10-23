@@ -11,6 +11,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.dashcam.domain.model.AppSettings
 import com.dashcam.domain.model.CameraFacing
 import com.dashcam.domain.model.GSensorSensitivity
+import com.dashcam.domain.model.NavigationStopDelay
 import com.dashcam.domain.model.SpeedUnit
 import com.dashcam.domain.model.ThemeMode
 import com.dashcam.domain.model.VideoAspectRatio
@@ -52,6 +53,8 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
             writeGpx = this[Keys.writeGpx] ?: defaults.writeGpx,
             speedUnit = enumOf(this[Keys.speedUnit], defaults.speedUnit),
             autoStartOnLaunch = this[Keys.autoStartOnLaunch] ?: defaults.autoStartOnLaunch,
+            autoRecordOnNavigation = this[Keys.autoRecordOnNavigation] ?: defaults.autoRecordOnNavigation,
+            navigationStopDelay = enumOf(this[Keys.navigationStopDelay], defaults.navigationStopDelay),
             keepScreenOn = this[Keys.keepScreenOn] ?: defaults.keepScreenOn,
             pictureInPicture = this[Keys.pictureInPicture] ?: defaults.pictureInPicture,
             vibrateOnStartStop = this[Keys.vibrateOnStartStop] ?: defaults.vibrateOnStartStop,
@@ -78,6 +81,8 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
         this[Keys.writeGpx] = s.writeGpx
         this[Keys.speedUnit] = s.speedUnit.name
         this[Keys.autoStartOnLaunch] = s.autoStartOnLaunch
+        this[Keys.autoRecordOnNavigation] = s.autoRecordOnNavigation
+        this[Keys.navigationStopDelay] = s.navigationStopDelay.name
         this[Keys.keepScreenOn] = s.keepScreenOn
         this[Keys.pictureInPicture] = s.pictureInPicture
         this[Keys.vibrateOnStartStop] = s.vibrateOnStartStop
@@ -106,6 +111,8 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
         val writeGpx = booleanPreferencesKey("write_gpx")
         val speedUnit = stringPreferencesKey("speed_unit")
         val autoStartOnLaunch = booleanPreferencesKey("auto_start_on_launch")
+        val autoRecordOnNavigation = booleanPreferencesKey("auto_record_on_navigation")
+        val navigationStopDelay = stringPreferencesKey("navigation_stop_delay")
         val keepScreenOn = booleanPreferencesKey("keep_screen_on")
         val pictureInPicture = booleanPreferencesKey("picture_in_picture")
         val vibrateOnStartStop = booleanPreferencesKey("vibrate_on_start_stop")

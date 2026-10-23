@@ -12,6 +12,15 @@ enum class SpeedUnit { KMH, MPH }
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
+/** How long after navigation ends a recording that navigation started is stopped; null = never. */
+enum class NavigationStopDelay(val delayMillis: Long?) {
+    NEVER(null),
+    IMMEDIATELY(0),
+    ONE_MINUTE(60_000),
+    TWO_MINUTES(120_000),
+    FIVE_MINUTES(300_000),
+}
+
 /** Impact threshold in g of linear acceleration; lower threshold = more sensitive. */
 enum class GSensorSensitivity(val thresholdG: Float) {
     VERY_LOW(2.5f),
@@ -41,6 +50,9 @@ data class AppSettings(
     val writeGpx: Boolean = false,
     val speedUnit: SpeedUnit = SpeedUnit.KMH,
     val autoStartOnLaunch: Boolean = false,
+    /** Start recording when a navigation app (Google Maps, Waze) starts navigating. */
+    val autoRecordOnNavigation: Boolean = false,
+    val navigationStopDelay: NavigationStopDelay = NavigationStopDelay.IMMEDIATELY,
     val keepScreenOn: Boolean = true,
     /** Keep the viewfinder in a picture-in-picture window when leaving the app while recording. */
     val pictureInPicture: Boolean = false,

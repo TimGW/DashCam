@@ -56,6 +56,9 @@
     <string name="notification_recording_text">Recording in a loop</string>
     <string name="notification_recording_locked">Current clip is locked</string>
     <string name="tile_record">Record</string>
+    <string name="notification_channel_navigation">Navigation</string>
+    <string name="notification_navigation_title">Navigation started</string>
+    <string name="notification_navigation_text">Tap to start recording</string>
     <string name="tile_stop">Stop recording</string>
 
     <!-- Recordings -->
@@ -134,6 +137,19 @@
     <string name="settings_auto_start">Start recording on launch</string>
     <string name="settings_auto_start_summary">Begin recording as soon as the app opens</string>
     <string name="settings_keep_screen_on">Keep screen on</string>
+    <string name="settings_auto_record_navigation">Record when navigating</string>
+    <string name="settings_auto_record_navigation_summary">Start recording when Google Maps navigates or Waze is open</string>
+    <string name="settings_notification_access">Allow notification access</string>
+    <string name="settings_notification_access_summary">Needed to notice when navigation starts</string>
+    <string name="settings_start_without_tap">Start without tapping</string>
+    <string name="settings_start_without_tap_off">Allow \"Display over other apps\" to start automatically. Until then, you\'ll get a notification to tap.</string>
+    <string name="settings_start_without_tap_on">Allowed. DashCam opens briefly, then continues in picture-in-picture or the background.</string>
+    <string name="settings_stop_when_navigation_ends">Stop when navigation ends</string>
+    <string name="navigation_stop_never">Never</string>
+    <string name="navigation_stop_immediately">Immediately</string>
+    <string name="navigation_stop_one_minute">After 1 minute</string>
+    <string name="navigation_stop_two_minutes">After 2 minutes</string>
+    <string name="navigation_stop_five_minutes">After 5 minutes</string>
     <string name="settings_picture_in_picture">Picture-in-picture</string>
     <string name="settings_picture_in_picture_summary">Keep the viewfinder in a small window when you leave the app while recording</string>
     <string name="settings_vibrate_start_stop">Vibrate when recording starts or stops</string>

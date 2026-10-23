@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.os.Build
 import android.util.Rational
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -119,6 +120,9 @@ fun RecordScreen(
     onOpenSettings: () -> Unit,
     startRecordingRequest: Boolean,
     onStartRecordingHandled: () -> Unit,
+    minimizeAfterStart: Boolean,
+    /** Called once out of the way; true when entering picture-in-picture rather than the background. */
+    onMinimized: (enteringPictureInPicture: Boolean) -> Unit,
     viewModel: RecordViewModel = viewModel(
         factory = containerViewModelFactory {
             RecordViewModel(
@@ -189,6 +193,18 @@ fun RecordScreen(
     )
     // Stopping from the window's own button leaves nothing to show: close the window.
     val activity = LocalActivity.current
+    // Started for another app (navigation): once recording, hand the screen back to it.
+    LaunchedEffect(minimizeAfterStart, state.isRecording) {
+        val componentActivity = activity as? ComponentActivity ?: return@LaunchedEffect
+        if (!minimizeAfterStart || !state.isRecording) return@LaunchedEffect
+        val inPip = state.settings?.pictureInPicture == true && enterPictureInPicture(
+            componentActivity,
+            pictureInPictureAspect(state.settings?.aspectRatio, configuration.orientation),
+            isLocked = (recorder as? RecorderState.Recording)?.isLocked == true,
+        )
+        if (!inPip) componentActivity.moveTaskToBack(true)
+        onMinimized(inPip)
+    }
     LaunchedEffect(inPictureInPicture, state.isRecording) {
         if (inPictureInPicture && !state.isRecording) activity?.moveTaskToBack(false)
     }

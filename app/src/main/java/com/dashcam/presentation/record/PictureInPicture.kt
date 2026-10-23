@@ -3,6 +3,7 @@ package com.dashcam.presentation.record
 import android.app.PictureInPictureParams
 import android.app.RemoteAction
 import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.util.Rational
@@ -58,6 +59,13 @@ fun PictureInPictureEffect(enabled: Boolean, aspectRatio: Rational, isLocked: Bo
         }
     }
 }
+
+/** Shrinks [activity] into a picture-in-picture window right away; false if that's not possible. */
+fun enterPictureInPicture(activity: ComponentActivity, aspectRatio: Rational, isLocked: Boolean): Boolean =
+    activity.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE) &&
+        runCatching {
+            activity.enterPictureInPictureMode(pictureInPictureParams(activity, true, aspectRatio, isLocked))
+        }.getOrDefault(false)
 
 private fun pictureInPictureParams(
     context: Context,
