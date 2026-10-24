@@ -70,6 +70,9 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.datasource.CollectionPreviewParameterProvider
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -88,9 +91,9 @@ import com.dashcam.domain.model.ThemeMode
 import com.dashcam.domain.model.VideoAspectRatio
 import com.dashcam.domain.model.VideoQuality
 import com.dashcam.presentation.common.containerViewModelFactory
+import com.dashcam.presentation.theme.DashCamPreviewTheme
 import com.dashcam.service.NavigationListenerService
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
@@ -100,6 +103,24 @@ fun SettingsScreen(
     ),
 ) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
+    SettingsContent(
+        settings = settings,
+        onBack = onBack,
+        onOpenEventLog = onOpenEventLog,
+        onUpdate = viewModel::update,
+        onChangePin = viewModel::changePin,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsContent(
+    settings: AppSettings?,
+    onBack: () -> Unit,
+    onOpenEventLog: () -> Unit,
+    onUpdate: ((AppSettings) -> AppSettings) -> Unit,
+    onChangePin: suspend (currentPin: String?, newPin: String?) -> Boolean,
+) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
     var pinDialog by remember { mutableStateOf<PinDialogMode?>(null) }
 
@@ -119,12 +140,12 @@ fun SettingsScreen(
     ) { padding ->
         val current = settings ?: return@Scaffold
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = padding) {
-            settingsContent(current, viewModel::update, onPinAction = { pinDialog = it }, onOpenEventLog = onOpenEventLog)
+            settingsContent(current, onUpdate, onPinAction = { pinDialog = it }, onOpenEventLog = onOpenEventLog)
         }
     }
 
     pinDialog?.let { mode ->
-        PinDialog(mode = mode, onSubmit = viewModel::changePin, onDismiss = { pinDialog = null })
+        PinDialog(mode = mode, onSubmit = onChangePin, onDismiss = { pinDialog = null })
     }
 }
 
@@ -597,7 +618,7 @@ private fun BatteryOptimizationSetting() {
 private fun VersionSetting() {
     val context = LocalContext.current
     val version = remember {
-        context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
+        runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull().orEmpty()
     }
     ActionSetting(
         title = stringResource(R.string.settings_version),
@@ -651,4 +672,19 @@ private fun ThemeMode.labelRes() = when (this) {
     ThemeMode.SYSTEM -> R.string.theme_system
     ThemeMode.LIGHT -> R.string.theme_light
     ThemeMode.DARK -> R.string.theme_dark
+}
+
+private class SettingsPreviewProvider : CollectionPreviewParameterProvider<AppSettings>(
+    listOf(
+        AppSettings(),
+        AppSettings(videoOverlay = false, gSensorEnabled = false, autoRecordOnNavigation = true, pinHash = "preview"),
+    ),
+)
+
+@PreviewLightDark
+@Composable
+private fun SettingsContentPreview(@PreviewParameter(SettingsPreviewProvider::class) settings: AppSettings) {
+    DashCamPreviewTheme {
+        SettingsContent(settings = settings, onBack = {}, onOpenEventLog = {}, onUpdate = {}, onChangePin = { _, _ -> true })
+    }
 }

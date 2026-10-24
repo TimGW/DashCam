@@ -17,9 +17,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.datasource.CollectionPreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import com.dashcam.R
 import com.dashcam.domain.usecase.ManagePinUseCase
+import com.dashcam.presentation.theme.DashCamPreviewTheme
 import kotlinx.coroutines.launch
 
 enum class PinDialogMode { SET, CHANGE, REMOVE }
@@ -96,4 +100,14 @@ private fun PinField(value: String, onValueChange: (String) -> Unit, labelRes: I
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
     )
+}
+
+private class PinDialogModeProvider : CollectionPreviewParameterProvider<PinDialogMode>(PinDialogMode.entries)
+
+@Preview
+@Composable
+private fun PinDialogPreview(@PreviewParameter(PinDialogModeProvider::class) mode: PinDialogMode) {
+    DashCamPreviewTheme {
+        PinDialog(mode = mode, onSubmit = { _, _ -> true }, onDismiss = {})
+    }
 }

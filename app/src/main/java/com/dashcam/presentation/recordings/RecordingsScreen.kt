@@ -66,6 +66,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewLightDark
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.datasource.CollectionPreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -74,6 +78,7 @@ import com.dashcam.domain.model.Recording
 import com.dashcam.domain.model.RecordingType
 import com.dashcam.domain.model.SortOrder
 import com.dashcam.domain.model.StorageStats
+import com.dashcam.presentation.common.PreviewData
 import com.dashcam.presentation.common.RecordingThumbnail
 import com.dashcam.presentation.common.containerViewModelFactory
 import com.dashcam.presentation.common.formatBytes
@@ -81,8 +86,8 @@ import com.dashcam.presentation.common.formatDateTime
 import com.dashcam.presentation.common.formatDuration
 import com.dashcam.presentation.common.shareRecording
 import com.dashcam.presentation.pin.PinLockScreen
+import com.dashcam.presentation.theme.DashCamPreviewTheme
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecordingsScreen(
     onBack: () -> Unit,
@@ -110,7 +115,6 @@ fun RecordingsScreen(
 
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    var pendingDelete by remember { mutableStateOf<Collection<String>?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.messages.collect { message ->
@@ -124,14 +128,48 @@ fun RecordingsScreen(
         }
     }
 
+    RecordingsContent(
+        state = state,
+        snackbarHostState = snackbarHostState,
+        onBack = onBack,
+        onOpen = onOpen,
+        onSelectType = viewModel::selectType,
+        onSelectSort = viewModel::selectSort,
+        onToggleSelection = viewModel::toggleSelection,
+        onClearSelection = viewModel::clearSelection,
+        onSetLocked = viewModel::setLocked,
+        onShare = { context.shareRecording(it) },
+        onSaveToGallery = viewModel::saveToGallery,
+        onDelete = viewModel::delete,
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RecordingsContent(
+    state: RecordingsUiState,
+    snackbarHostState: SnackbarHostState,
+    onBack: () -> Unit,
+    onOpen: (Recording) -> Unit,
+    onSelectType: (RecordingType) -> Unit,
+    onSelectSort: (SortOrder) -> Unit,
+    onToggleSelection: (String) -> Unit,
+    onClearSelection: () -> Unit,
+    onSetLocked: (ids: Collection<String>, locked: Boolean) -> Unit,
+    onShare: (Recording) -> Unit,
+    onSaveToGallery: (Recording) -> Unit,
+    onDelete: (ids: Collection<String>) -> Unit,
+) {
+    var pendingDelete by remember { mutableStateOf<Collection<String>?>(null) }
+
     val selecting = state.selection.isNotEmpty()
     val onItemClick: (Recording) -> Unit = { recording ->
-        if (selecting) viewModel.toggleSelection(recording.id) else onOpen(recording)
+        if (selecting) onToggleSelection(recording.id) else onOpen(recording)
     }
     val itemActions = RecordingActions(
-        onLock = { viewModel.setLocked(listOf(it.id), !it.isLocked) },
-        onShare = { context.shareRecording(it) },
-        onSave = viewModel::saveToGallery,
+        onLock = { onSetLocked(listOf(it.id), !it.isLocked) },
+        onShare = onShare,
+        onSave = onSaveToGallery,
         onDelete = { pendingDelete = listOf(it.id) },
     )
 
@@ -140,9 +178,9 @@ fun RecordingsScreen(
             if (selecting) {
                 SelectionTopBar(
                     count = state.selection.size,
-                    onClear = viewModel::clearSelection,
-                    onLock = { viewModel.setLocked(state.selection, true) },
-                    onUnlock = { viewModel.setLocked(state.selection, false) },
+                    onClear = onClearSelection,
+                    onLock = { onSetLocked(state.selection, true) },
+                    onUnlock = { onSetLocked(state.selection, false) },
                     onDelete = { pendingDelete = state.selection },
                 )
             } else {
@@ -153,7 +191,7 @@ fun RecordingsScreen(
                             Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.cd_back))
                         }
                     },
-                    actions = { SortMenu(selected = state.sort, onSelect = viewModel::selectSort) },
+                    actions = { SortMenu(selected = state.sort, onSelect = onSelectSort) },
                 )
             }
         },
@@ -167,12 +205,12 @@ fun RecordingsScreen(
             PrimaryTabRow(selectedTabIndex = state.type.ordinal) {
                 Tab(
                     selected = state.type == RecordingType.VIDEO,
-                    onClick = { viewModel.selectType(RecordingType.VIDEO) },
+                    onClick = { onSelectType(RecordingType.VIDEO) },
                     text = { Text(stringResource(R.string.recordings_tab_videos)) },
                 )
                 Tab(
                     selected = state.type == RecordingType.PHOTO,
-                    onClick = { viewModel.selectType(RecordingType.PHOTO) },
+                    onClick = { onSelectType(RecordingType.PHOTO) },
                     text = { Text(stringResource(R.string.recordings_tab_photos)) },
                 )
             }
@@ -186,7 +224,7 @@ fun RecordingsScreen(
                             recording = recording,
                             selected = recording.id in state.selection,
                             onClick = { onItemClick(recording) },
-                            onLongClick = { viewModel.toggleSelection(recording.id) },
+                            onLongClick = { onToggleSelection(recording.id) },
                             actions = itemActions,
                         )
                     }
@@ -202,7 +240,7 @@ fun RecordingsScreen(
                             recording = recording,
                             selected = recording.id in state.selection,
                             onClick = { onItemClick(recording) },
-                            onLongClick = { viewModel.toggleSelection(recording.id) },
+                            onLongClick = { onToggleSelection(recording.id) },
                         )
                     }
                 }
@@ -217,7 +255,7 @@ fun RecordingsScreen(
             text = { Text(stringResource(R.string.delete_body)) },
             confirmButton = {
                 TextButton(onClick = {
-                    viewModel.delete(ids.toList())
+                    onDelete(ids)
                     pendingDelete = null
                 }) { Text(stringResource(R.string.action_delete)) }
             },
@@ -494,4 +532,64 @@ private fun SortOrder.labelRes(): Int = when (this) {
     SortOrder.NAME -> R.string.sort_name
     SortOrder.LARGEST -> R.string.sort_largest
     SortOrder.LONGEST -> R.string.sort_longest
+}
+
+private class RecordingsPreviewProvider : CollectionPreviewParameterProvider<RecordingsUiState>(
+    listOf(
+        RecordingsUiState(
+            items = PreviewData.videos,
+            isLoading = false,
+            stats = PreviewData.storageStats,
+            maxStorageGb = 8,
+        ),
+        RecordingsUiState(
+            items = PreviewData.videos,
+            isLoading = false,
+            selection = setOf(PreviewData.video.id, PreviewData.lockedVideo.id),
+            stats = PreviewData.storageStats,
+            maxStorageGb = 8,
+        ),
+        RecordingsUiState(
+            type = RecordingType.PHOTO,
+            items = PreviewData.photos,
+            isLoading = false,
+            selection = setOf(PreviewData.photos.first().id),
+            stats = PreviewData.storageStats,
+        ),
+        RecordingsUiState(isLoading = false, stats = PreviewData.storageStats.copy(recordingsBytes = 0)),
+    ),
+)
+
+@PreviewLightDark
+@Composable
+private fun RecordingsContentPreview(@PreviewParameter(RecordingsPreviewProvider::class) state: RecordingsUiState) {
+    DashCamPreviewTheme {
+        RecordingsContent(
+            state = state,
+            snackbarHostState = remember { SnackbarHostState() },
+            onBack = {},
+            onOpen = {},
+            onSelectType = {},
+            onSelectSort = {},
+            onToggleSelection = {},
+            onClearSelection = {},
+            onSetLocked = { _, _ -> },
+            onShare = {},
+            onSaveToGallery = {},
+            onDelete = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun RecordingMenuPreview() {
+    DashCamPreviewTheme {
+        RecordingMenu(
+            expanded = true,
+            recording = PreviewData.lockedVideo,
+            actions = RecordingActions(onLock = {}, onShare = {}, onSave = {}, onDelete = {}),
+            onDismiss = {},
+        )
+    }
 }

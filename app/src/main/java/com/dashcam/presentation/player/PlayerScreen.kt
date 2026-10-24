@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.C
@@ -40,7 +41,9 @@ import androidx.media3.ui.SubtitleView
 import com.dashcam.R
 import com.dashcam.domain.model.Recording
 import com.dashcam.domain.model.RecordingType
+import com.dashcam.presentation.common.PreviewData
 import com.dashcam.presentation.common.loadThumbnail
+import com.dashcam.presentation.theme.DashCamPreviewTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -150,3 +153,21 @@ private fun photoRecording(path: String) = Recording(
     isLocked = false,
     subtitlesPath = null,
 )
+
+// PlayerScreen has no preview: ExoPlayer and PlayerView don't run in the preview renderer.
+
+@Preview(showSystemUi = true)
+@Composable
+private fun PhotoScreenPreview() {
+    DashCamPreviewTheme {
+        PhotoScreen(path = PreviewData.photo.id, onBack = {})
+    }
+}
+
+@Preview
+@Composable
+private fun BackButtonPreview() {
+    DashCamPreviewTheme {
+        BackButton(onBack = {})
+    }
+}

@@ -6,6 +6,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Label
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.HighQuality
+import androidx.compose.material.icons.outlined.Speed
+import androidx.compose.material.icons.outlined.Straighten
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -27,8 +33,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import com.dashcam.R
+import com.dashcam.presentation.theme.DashCamPreviewTheme
 
 @Composable
 fun SectionHeader(title: String) {
@@ -165,5 +173,39 @@ fun TextSetting(
                 TextButton(onClick = { editing = null }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun SettingsComponentsPreview() {
+    DashCamPreviewTheme {
+        Column {
+            SectionHeader("Video")
+            SwitchSetting(
+                title = "Stabilization",
+                summary = "Smooths out vibrations. Crops the image slightly.",
+                icon = Icons.Outlined.Straighten,
+                checked = true,
+                onCheckedChange = {},
+            )
+            SwitchSetting(title = "Speed in video", icon = Icons.Outlined.Speed, checked = false, onCheckedChange = {}, enabled = false)
+            ChoiceSetting(
+                title = "Resolution",
+                icon = Icons.Outlined.HighQuality,
+                options = listOf("720p", "1080p", "4K"),
+                selected = "1080p",
+                label = { it },
+                onSelect = {},
+            )
+            TextSetting(
+                title = "Label in video",
+                icon = Icons.AutoMirrored.Outlined.Label,
+                value = "",
+                emptyLabel = "None (e.g. your number plate)",
+                onValueChange = {},
+            )
+            ActionSetting(title = "Storage location", summary = "App storage", icon = Icons.Outlined.Folder, onClick = {})
+        }
     }
 }

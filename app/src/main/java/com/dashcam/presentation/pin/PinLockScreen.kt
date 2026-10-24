@@ -32,9 +32,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewLightDark
 import androidx.compose.ui.unit.dp
 import com.dashcam.R
 import com.dashcam.domain.usecase.ManagePinUseCase
+import com.dashcam.presentation.theme.DashCamPreviewTheme
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -142,5 +145,21 @@ private fun Keypad(
                 Icon(Icons.Filled.Check, stringResource(R.string.cd_confirm))
             }
         }
+    }
+}
+
+@PreviewLightDark
+@Composable
+private fun PinLockScreenPreview() {
+    DashCamPreviewTheme {
+        PinLockScreen(onBack = {}, onSubmit = { false })
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun PinDotsPreview() {
+    DashCamPreviewTheme {
+        PinDots(length = 3, slots = 6)
     }
 }

@@ -84,6 +84,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.tooling.preview.PreviewParameter
+import androidx.compose.ui.tooling.preview.datasource.CollectionPreviewParameterProvider
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -92,6 +95,9 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dashcam.R
+import com.dashcam.domain.model.AppSettings
+import com.dashcam.domain.model.CameraState
+import com.dashcam.domain.model.LocationSample
 import com.dashcam.domain.model.RecorderEvent
 import com.dashcam.domain.model.RecorderState
 import com.dashcam.domain.model.SpeedUnit
@@ -100,6 +106,7 @@ import com.dashcam.domain.model.toSpeed
 import com.dashcam.presentation.common.containerViewModelFactory
 import com.dashcam.presentation.common.formatBytes
 import com.dashcam.presentation.common.formatDuration
+import com.dashcam.presentation.theme.DashCamPreviewTheme
 import com.dashcam.presentation.theme.GpsGreen
 import com.dashcam.presentation.theme.RecordRed
 import kotlinx.coroutines.delay
@@ -231,6 +238,7 @@ fun RecordScreen(
         if (!inPictureInPicture) Column(Modifier.fillMaxSize()) {
             TopOverlay(
                 state = state,
+                hasLocationPermission = context.isGranted(Manifest.permission.ACCESS_FINE_LOCATION),
                 onSwitchCamera = viewModel::switchCamera,
                 onOpenRecordings = onOpenRecordings,
                 onOpenSettings = onOpenSettings,
@@ -314,6 +322,7 @@ private fun SecondaryCameraPreview(
 @Composable
 private fun TopOverlay(
     state: RecordUiState,
+    hasLocationPermission: Boolean,
     onSwitchCamera: () -> Unit,
     onOpenRecordings: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -332,7 +341,7 @@ private fun TopOverlay(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            StatusPills(state)
+            StatusPills(state, hasLocationPermission)
         }
         OverlayIconButton(
             icon = Icons.Filled.Cameraswitch,
@@ -353,7 +362,7 @@ private fun TopOverlay(
 }
 
 @Composable
-private fun StatusPills(state: RecordUiState) {
+private fun StatusPills(state: RecordUiState, hasLocationPermission: Boolean) {
     val context = LocalContext.current
     val recorder = state.recorder
     if (recorder is RecorderState.Recording) {
@@ -369,7 +378,7 @@ private fun StatusPills(state: RecordUiState) {
         )
     }
     val fresh = state.location?.let { System.currentTimeMillis() - it.timeMillis < GPS_STALE_MS } == true
-    if (context.isGranted(Manifest.permission.ACCESS_FINE_LOCATION)) {
+    if (hasLocationPermission) {
         StatusPill(
             icon = if (fresh) Icons.Filled.GpsFixed else Icons.Filled.GpsOff,
             text = stringResource(if (fresh) R.string.record_status_gps else R.string.record_status_no_gps),
@@ -585,3 +594,123 @@ private fun RecorderEvent.messageRes(): Int? = when (this) {
 
 private fun Context.isGranted(permission: String) =
     ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
+
+private val previewRecording = RecorderState.Recording(
+    startedAtMillis = System.currentTimeMillis() - 754_000,
+    segmentStartedAtMillis = System.currentTimeMillis() - 34_000,
+    isLocked = true,
+    isAudioMuted = false,
+)
+
+private class RecordUiStatePreviewProvider : CollectionPreviewParameterProvider<RecordUiState>(
+    listOf(
+        RecordUiState(
+            camera = CameraState(isReady = true, hasFlash = true),
+            settings = AppSettings(),
+            freeBytes = 41_000_000_000,
+        ),
+        RecordUiState(
+            recorder = previewRecording,
+            camera = CameraState(isReady = true, hasFlash = true, torchOn = true),
+            location = LocationSample(
+                latitude = 52.37,
+                longitude = 4.89,
+                altitudeMeters = null,
+                speedMetersPerSecond = 23.6f,
+                accuracyMeters = 4f,
+                timeMillis = System.currentTimeMillis(),
+            ),
+            settings = AppSettings(),
+            freeBytes = 41_000_000_000,
+        ),
+        RecordUiState(
+            recorder = previewRecording.copy(isLocked = false, isAudioMuted = true, isInterrupted = true),
+            settings = AppSettings(speedUnit = SpeedUnit.MPH),
+            freeBytes = 1_200_000_000,
+        ),
+    ),
+)
+
+/** The record screen's controls over a black stand-in for the camera viewfinder. */
+@Preview(showSystemUi = true)
+@Composable
+private fun RecordOverlaysPreview(@PreviewParameter(RecordUiStatePreviewProvider::class) state: RecordUiState) {
+    DashCamPreviewTheme {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        ) {
+            TopOverlay(
+                state = state,
+                hasLocationPermission = true,
+                onSwitchCamera = {},
+                onOpenRecordings = {},
+                onOpenSettings = {},
+            )
+            Spacer(Modifier.weight(1f))
+            BottomOverlay(
+                state = state,
+                snackbarHostState = remember { SnackbarHostState() },
+                enabled = true,
+                onToggleRecording = {},
+                onToggleAudio = {},
+                onToggleTorch = {},
+                onTakePhoto = {},
+                onToggleLock = {},
+            )
+        }
+    }
+}
+
+@Preview(showSystemUi = true)
+@Composable
+private fun PermissionPromptPreview() {
+    DashCamPreviewTheme {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black),
+        ) {
+            PermissionPrompt(onGrant = {}, modifier = Modifier.align(Alignment.Center))
+        }
+    }
+}
+
+@Preview(backgroundColor = 0xFF000000, showBackground = true)
+@Composable
+private fun RecordControlsPreview() {
+    DashCamPreviewTheme {
+        Row(
+            Modifier
+                .background(Color.Black)
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RecordButton(recording = false, enabled = true, onClick = {})
+            RecordButton(recording = true, enabled = true, onClick = {})
+            RecordButton(recording = false, enabled = false, onClick = {})
+            OverlayIconButton(icon = Icons.Filled.Mic, contentDescription = "", onClick = {})
+            OverlayIconButton(icon = Icons.Filled.Lock, contentDescription = "", onClick = {}, active = true)
+            OverlayIconButton(icon = Icons.Filled.PhotoCamera, contentDescription = "", onClick = {}, enabled = false)
+        }
+    }
+}
+
+@Preview(backgroundColor = 0xFF000000, showBackground = true)
+@Composable
+private fun StatusPillPreview() {
+    DashCamPreviewTheme {
+        Row(
+            Modifier
+                .background(Color.Black)
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            StatusPill(icon = Icons.Filled.Lock, text = "REC 12:34", containerColor = RecordRed)
+            StatusPill(icon = Icons.Filled.GpsFixed, text = "GPS", iconTint = GpsGreen)
+            StatusPill(icon = Icons.Filled.SdStorage, text = "41 GB")
+        }
+    }
+}
