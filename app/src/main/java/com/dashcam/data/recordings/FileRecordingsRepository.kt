@@ -108,6 +108,7 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
         val videos = videoDir.listFiles { f -> f.extension == VIDEO_EXT }.orEmpty()
             .filter { it.absolutePath !in inProgress && it.length() > 0 }
             .map { it.toRecording(RecordingType.VIDEO) }
+            .let(::linkCameraPairs)
         val photos = photoDir.listFiles { f -> f.extension == PHOTO_EXT }.orEmpty()
             .filter { it.length() > 0 }
             .map { it.toRecording(RecordingType.PHOTO) }
@@ -167,6 +168,24 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
         private const val PHOTO_EXT = "jpg"
         private const val VIDEO_PATTERN = "yyyyMMdd_HHmmss"
         private const val PHOTO_PATTERN = "yyyyMMdd_HHmmss_SSS"
+
+        /**
+         * Marks front camera videos ("_front") and links each to the back camera video recorded in
+         * the same session (the same name without "_front"); either may be locked.
+         */
+        internal fun linkCameraPairs(videos: List<Recording>): List<Recording> {
+            fun Recording.base() = name.substringBeforeLast('.').removeSuffix(LOCKED_SUFFIX)
+            fun Recording.isFront() = base().endsWith(FRONT_SUFFIX)
+            val backByBase = videos.filterNot { it.isFront() }.associateBy { it.base() }
+            val frontByBase = videos.filter { it.isFront() }.associateBy { it.base().removeSuffix(FRONT_SUFFIX) }
+            return videos.map { video ->
+                if (video.isFront()) {
+                    video.copy(isFrontCamera = true, pairedWith = backByBase[video.base().removeSuffix(FRONT_SUFFIX)]?.id)
+                } else {
+                    video.copy(pairedWith = frontByBase[video.base()]?.id)
+                }
+            }
+        }
 
         /**
          * Video names only have second precision; when a clip with that name already exists (a

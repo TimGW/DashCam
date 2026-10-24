@@ -19,8 +19,26 @@ class ObserveRecordingsUseCase(private val repository: RecordingsRepository) {
                 SortOrder.NAME -> ofType.sortedBy { it.name }
                 SortOrder.LARGEST -> ofType.sortedByDescending { it.sizeBytes }
                 SortOrder.LONGEST -> ofType.sortedByDescending { it.durationMillis ?: 0L }
-            }
+            }.keepCameraPairsTogether()
         }
+}
+
+/**
+ * Moves the two videos of a both-cameras session next to each other, back camera first, at the
+ * place where the first of them sorted.
+ */
+internal fun List<Recording>.keepCameraPairsTogether(): List<Recording> {
+    val byId = associateBy { it.id }
+    val placed = mutableSetOf<String>()
+    return buildList {
+        for (recording in this@keepCameraPairsTogether) {
+            if (recording.id in placed) continue
+            val partner = recording.pairedWith?.let(byId::get)?.takeIf { it.id !in placed }
+            val group = listOfNotNull(recording, partner).sortedBy { it.isFrontCamera }
+            group.forEach { placed += it.id }
+            addAll(group)
+        }
+    }
 }
 
 class SetRecordingsLockedUseCase(private val repository: RecordingsRepository) {

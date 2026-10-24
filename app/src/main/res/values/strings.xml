@@ -79,6 +79,9 @@
     <string name="recordings_tab_photos">Photos</string>
     <string name="recordings_empty_videos">No videos yet. Tap the record button to start.</string>
     <string name="recordings_empty_photos">No photos yet</string>
+    <string name="recording_group_both_cameras">Both camera sensors</string>
+    <string name="recording_tag_back_camera">Back</string>
+    <string name="recording_tag_front_camera">Front</string>
     <string name="selection_count">%1$d selected</string>
     <string name="delete_body">Deleted recordings can\'t be recovered.</string>
     <plurals name="delete_title">

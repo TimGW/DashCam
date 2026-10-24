@@ -1,11 +1,13 @@
 package com.dashcam.presentation.recordings
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.outlined.Cameraswitch
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.Lock
@@ -219,14 +222,18 @@ private fun RecordingsContent(
                 state.isLoading -> Unit
                 state.items.isEmpty() -> EmptyState(state.type)
                 state.type == RecordingType.VIDEO -> LazyColumn(contentPadding = PaddingValues(bottom = 16.dp)) {
-                    items(state.items, key = { it.id }) { recording ->
-                        VideoRow(
-                            recording = recording,
-                            selected = recording.id in state.selection,
-                            onClick = { onItemClick(recording) },
-                            onLongClick = { onToggleSelection(recording.id) },
-                            actions = itemActions,
-                        )
+                    items(state.items.groupCameraPairs(), key = { it.first().id }) { group ->
+                        val row: @Composable (Recording) -> Unit = { recording ->
+                            VideoRow(
+                                recording = recording,
+                                selected = recording.id in state.selection,
+                                onClick = { onItemClick(recording) },
+                                onLongClick = { onToggleSelection(recording.id) },
+                                actions = itemActions,
+                                grouped = group.size > 1,
+                            )
+                        }
+                        if (group.size == 1) row(group.single()) else CameraPairGroup { group.forEach { row(it) } }
                     }
                 }
                 else -> LazyVerticalGrid(
@@ -281,14 +288,16 @@ private fun VideoRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     actions: RecordingActions,
+    /** Shown inside a [CameraPairGroup], which provides the background. */
+    grouped: Boolean = false,
 ) {
     val context = LocalContext.current
     ListItem(
         modifier = Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick),
-        colors = if (selected) {
-            ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-        } else {
-            ListItemDefaults.colors()
+        colors = when {
+            selected -> ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+            grouped -> ListItemDefaults.colors(containerColor = Color.Transparent)
+            else -> ListItemDefaults.colors()
         },
         leadingContent = {
             Box {
@@ -330,10 +339,15 @@ private fun VideoRow(
         headlineContent = { Text(formatDateTime(recording.createdAtMillis)) },
         supportingContent = {
             val parts = listOfNotNull(
-                recording.durationMillis?.let(::formatDuration),
                 formatBytes(context, recording.sizeBytes),
             )
-            Text(parts.joinToString(" · "))
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(parts.joinToString(" · "))
+                when {
+                    recording.isFrontCamera -> CameraTag(stringResource(R.string.recording_tag_front_camera))
+                    recording.pairedWith != null -> CameraTag(stringResource(R.string.recording_tag_back_camera))
+                }
+            }
         },
         trailingContent = {
             Box {
@@ -360,6 +374,67 @@ private fun VideoRow(
             }
         },
     )
+}
+
+/** Splits the list into single videos and both-cameras pairs, which sorting keeps side by side. */
+private fun List<Recording>.groupCameraPairs(): List<List<Recording>> {
+    val groups = mutableListOf<List<Recording>>()
+    var i = 0
+    while (i < size) {
+        val next = getOrNull(i + 1)
+        if (next != null && this[i].pairedWith == next.id) {
+            groups += listOf(this[i], next)
+            i += 2
+        } else {
+            groups += listOf(this[i])
+            i++
+        }
+    }
+    return groups
+}
+
+/** Frames the two videos of a both-cameras session, so it's clear they were recorded together. */
+@Composable
+private fun CameraPairGroup(content: @Composable () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+    ) {
+        Column {
+            Row(
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Text(
+                    stringResource(R.string.recording_group_both_cameras),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+            }
+            content()
+        }
+    }
+}
+
+/** Says which camera recorded a video that has a partner from the other camera. */
+@Composable
+private fun CameraTag(text: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = RoundedCornerShape(4.dp),
+    ) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+        )
+    }
 }
 
 @Composable
@@ -545,7 +620,7 @@ private class RecordingsPreviewProvider : CollectionPreviewParameterProvider<Rec
         RecordingsUiState(
             items = PreviewData.videos,
             isLoading = false,
-            selection = setOf(PreviewData.video.id, PreviewData.lockedVideo.id),
+            selection = setOf(PreviewData.frontCameraVideo.id, PreviewData.lockedVideo.id),
             stats = PreviewData.storageStats,
             maxStorageGb = 8,
         ),

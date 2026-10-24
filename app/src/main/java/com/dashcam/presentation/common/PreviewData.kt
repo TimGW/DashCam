@@ -35,6 +35,22 @@ object PreviewData {
         isLocked = true,
     )
 
+    /** Both cameras, saved as separate videos from the same session. */
+    val backCameraVideo = video.copy(
+        id = "/preview/DC_20251024_100600.mp4",
+        name = "DC_20251024_100600.mp4",
+        createdAtMillis = START + 360_000,
+        pairedWith = "/preview/DC_20251024_100600_front.mp4",
+    )
+
+    val frontCameraVideo = backCameraVideo.copy(
+        id = "/preview/DC_20251024_100600_front.mp4",
+        name = "DC_20251024_100600_front.mp4",
+        sizeBytes = 225_000_000,
+        pairedWith = backCameraVideo.id,
+        isFrontCamera = true,
+    )
+
     val photo = Recording(
         id = "/preview/DC_20251024_100125_421.jpg",
         name = "DC_20251024_100125_421.jpg",
@@ -46,7 +62,7 @@ object PreviewData {
         subtitlesPath = null,
     )
 
-    val videos = listOf(eventVideo, lockedVideo, video)
+    val videos = listOf(backCameraVideo, frontCameraVideo, eventVideo, lockedVideo, video)
 
     val photos = List(6) { i -> photo.copy(id = "/preview/photo_$i.jpg", createdAtMillis = photo.createdAtMillis + i * 1000) }
 
