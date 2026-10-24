@@ -29,6 +29,8 @@ class ServiceRecorderController(
 
     override fun toggleLock() = session.toggleLock()
 
+    override fun markEvent() = session.markEvent()
+
     override fun setAudioMuted(muted: Boolean) = session.setAudioMuted(muted)
 
     override suspend fun takePhoto() = session.takePhoto()

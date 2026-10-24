@@ -18,6 +18,8 @@ sealed interface RecorderEvent {
     data object Stopped : RecorderEvent
     data class LockChanged(val locked: Boolean) : RecorderEvent
     data object ImpactDetected : RecorderEvent
+    data object EventMarked : RecorderEvent
+    data object EventClipSaved : RecorderEvent
     data object PhotoSaved : RecorderEvent
     data object PhotoFailed : RecorderEvent
     data object StorageFull : RecorderEvent
@@ -38,8 +40,6 @@ data class CameraState(
     val photoSupported: Boolean = true,
     /** The front camera has its own viewfinder (both cameras recording to separate files). */
     val hasSecondaryPreview: Boolean = false,
-    /** The preview has the front camera composited in a corner, so it must not be cropped. */
-    val hasCompositedPreview: Boolean = false,
     val zoomRatio: Float = 1f,
     val error: String? = null,
 )

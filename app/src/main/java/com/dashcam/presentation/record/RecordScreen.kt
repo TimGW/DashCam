@@ -218,7 +218,6 @@ fun RecordScreen(
             CameraPreview(
                 onSurfaceProvider = viewModel::attachPreview,
                 onZoom = viewModel::zoom,
-                fitWholeFrame = state.camera.hasCompositedPreview,
                 modifier = Modifier.fillMaxSize(),
             )
         } else if (permissionsRequested) {
@@ -274,19 +273,16 @@ private fun pictureInPictureAspect(aspectRatio: VideoAspectRatio?, orientation: 
 private fun CameraPreview(
     onSurfaceProvider: (androidx.camera.core.Preview.SurfaceProvider?) -> Unit,
     onZoom: (Float) -> Unit,
-    fitWholeFrame: Boolean,
     modifier: Modifier = Modifier,
 ) {
     AndroidView(
         factory = { context ->
             PreviewView(context).apply {
                 implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+                // Show the whole frame: filling the screen would hide parts of the recording.
+                scaleType = PreviewView.ScaleType.FIT_CENTER
                 onSurfaceProvider(surfaceProvider)
             }
-        },
-        // Filling the screen crops the frame's edges, which would cut off a composited inset.
-        update = { view ->
-            view.scaleType = if (fitWholeFrame) PreviewView.ScaleType.FIT_CENTER else PreviewView.ScaleType.FILL_CENTER
         },
         onRelease = { onSurfaceProvider(null) },
         modifier = modifier.pointerInput(Unit) {
@@ -573,6 +569,8 @@ private fun RecorderEvent.messageRes(): Int? = when (this) {
     RecorderEvent.Started, RecorderEvent.Stopped -> null
     is RecorderEvent.LockChanged -> if (locked) R.string.msg_clip_locked else R.string.msg_clip_unlocked
     RecorderEvent.ImpactDetected -> R.string.msg_impact_detected
+    RecorderEvent.EventMarked -> R.string.msg_event_marked
+    RecorderEvent.EventClipSaved -> R.string.msg_event_clip_saved
     RecorderEvent.PhotoSaved -> R.string.msg_photo_saved
     RecorderEvent.PhotoFailed -> R.string.msg_photo_failed
     RecorderEvent.StorageFull -> R.string.msg_storage_full

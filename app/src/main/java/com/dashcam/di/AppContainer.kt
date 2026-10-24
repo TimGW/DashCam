@@ -2,6 +2,7 @@ package com.dashcam.di
 
 import android.app.Application
 import com.dashcam.data.camera.CameraEngine
+import com.dashcam.data.camera.VideoOverlay
 import com.dashcam.data.device.AndroidDeviceHealthMonitor
 import com.dashcam.data.log.EventLog
 import com.dashcam.data.location.AndroidLocationRepository
@@ -30,6 +31,8 @@ import com.dashcam.domain.usecase.SetRecordingsLockedUseCase
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import java.io.File
 
 /** Manual dependency graph; one instance per process. */
@@ -45,7 +48,8 @@ class AppContainer(app: Application) {
     private val impactDetector: ImpactDetector = AccelerometerImpactDetector(app)
     val eventLog = EventLog(File(app.filesDir, "event_log.txt"))
 
-    val cameraEngine = CameraEngine(app)
+    private val currentSettings = settingsRepository.settings.stateIn(appScope, SharingStarted.Eagerly, null)
+    val cameraEngine = CameraEngine(app, VideoOverlay(currentSettings, locationRepository.location))
     val cameraController: CameraController get() = cameraEngine
 
     val recordingSession = RecordingSession(

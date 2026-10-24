@@ -42,6 +42,16 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
             separateCameraFiles = this[Keys.separateCameraFiles] ?: defaults.separateCameraFiles,
             aspectRatio = enumOf(this[Keys.aspectRatio], defaults.aspectRatio),
             wideAngle = this[Keys.wideAngle] ?: defaults.wideAngle,
+            focusMode = enumOf(this[Keys.focusMode], defaults.focusMode),
+            bitrate = enumOf(this[Keys.bitrate], defaults.bitrate),
+            frameRate = this[Keys.frameRate] ?: defaults.frameRate,
+            stabilization = this[Keys.stabilization] ?: defaults.stabilization,
+            videoOverlay = this[Keys.videoOverlay] ?: defaults.videoOverlay,
+            overlaySpeed = this[Keys.overlaySpeed] ?: defaults.overlaySpeed,
+            overlayLocation = this[Keys.overlayLocation] ?: defaults.overlayLocation,
+            overlayLabel = this[Keys.overlayLabel] ?: defaults.overlayLabel,
+            eventClipSeconds = this[Keys.eventClipSeconds] ?: defaults.eventClipSeconds,
+            remoteButtonMarksEvent = this[Keys.remoteButtonMarksEvent] ?: defaults.remoteButtonMarksEvent,
             recordAudio = this[Keys.recordAudio] ?: defaults.recordAudio,
             segmentMinutes = this[Keys.segmentMinutes] ?: defaults.segmentMinutes,
             loopRecording = this[Keys.loopRecording] ?: defaults.loopRecording,
@@ -49,7 +59,6 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
             gSensorEnabled = this[Keys.gSensorEnabled] ?: defaults.gSensorEnabled,
             gSensorSensitivity = enumOf(this[Keys.gSensorSensitivity], defaults.gSensorSensitivity),
             vibrateOnImpact = this[Keys.vibrateOnImpact] ?: defaults.vibrateOnImpact,
-            writeSubtitles = this[Keys.writeSubtitles] ?: defaults.writeSubtitles,
             writeGpx = this[Keys.writeGpx] ?: defaults.writeGpx,
             speedUnit = enumOf(this[Keys.speedUnit], defaults.speedUnit),
             autoStartOnLaunch = this[Keys.autoStartOnLaunch] ?: defaults.autoStartOnLaunch,
@@ -70,6 +79,16 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
         this[Keys.separateCameraFiles] = s.separateCameraFiles
         this[Keys.aspectRatio] = s.aspectRatio.name
         this[Keys.wideAngle] = s.wideAngle
+        this[Keys.focusMode] = s.focusMode.name
+        this[Keys.bitrate] = s.bitrate.name
+        this[Keys.frameRate] = s.frameRate
+        this[Keys.stabilization] = s.stabilization
+        this[Keys.videoOverlay] = s.videoOverlay
+        this[Keys.overlaySpeed] = s.overlaySpeed
+        this[Keys.overlayLocation] = s.overlayLocation
+        this[Keys.overlayLabel] = s.overlayLabel
+        this[Keys.eventClipSeconds] = s.eventClipSeconds
+        this[Keys.remoteButtonMarksEvent] = s.remoteButtonMarksEvent
         this[Keys.recordAudio] = s.recordAudio
         this[Keys.segmentMinutes] = s.segmentMinutes
         this[Keys.loopRecording] = s.loopRecording
@@ -77,7 +96,6 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
         this[Keys.gSensorEnabled] = s.gSensorEnabled
         this[Keys.gSensorSensitivity] = s.gSensorSensitivity.name
         this[Keys.vibrateOnImpact] = s.vibrateOnImpact
-        this[Keys.writeSubtitles] = s.writeSubtitles
         this[Keys.writeGpx] = s.writeGpx
         this[Keys.speedUnit] = s.speedUnit.name
         this[Keys.autoStartOnLaunch] = s.autoStartOnLaunch
@@ -100,6 +118,17 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
         val separateCameraFiles = booleanPreferencesKey("separate_camera_files")
         val aspectRatio = stringPreferencesKey("aspect_ratio")
         val wideAngle = booleanPreferencesKey("wide_angle")
+        val focusMode = stringPreferencesKey("focus_mode")
+        val bitrate = stringPreferencesKey("bitrate")
+        val frameRate = intPreferencesKey("frame_rate")
+        val stabilization = booleanPreferencesKey("stabilization")
+        val videoOverlay = booleanPreferencesKey("video_overlay")
+        val overlaySpeed = booleanPreferencesKey("overlay_speed")
+        // New key: coordinates are now opt-in, so earlier "on" defaults don't carry over.
+        val overlayLocation = booleanPreferencesKey("overlay_coordinates")
+        val overlayLabel = stringPreferencesKey("overlay_label")
+        val eventClipSeconds = intPreferencesKey("event_clip_seconds")
+        val remoteButtonMarksEvent = booleanPreferencesKey("remote_button_marks_event")
         val recordAudio = booleanPreferencesKey("record_audio")
         val segmentMinutes = intPreferencesKey("segment_minutes")
         val loopRecording = booleanPreferencesKey("loop_recording")
@@ -107,7 +136,6 @@ class DataStoreSettingsRepository(context: Context) : SettingsRepository {
         val gSensorEnabled = booleanPreferencesKey("g_sensor_enabled")
         val gSensorSensitivity = stringPreferencesKey("g_sensor_sensitivity")
         val vibrateOnImpact = booleanPreferencesKey("vibrate_on_impact")
-        val writeSubtitles = booleanPreferencesKey("write_subtitles")
         val writeGpx = booleanPreferencesKey("write_gpx")
         val speedUnit = stringPreferencesKey("speed_unit")
         val autoStartOnLaunch = booleanPreferencesKey("auto_start_on_launch")

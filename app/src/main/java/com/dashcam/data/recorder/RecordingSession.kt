@@ -9,6 +9,7 @@ import com.dashcam.domain.model.CameraSetup
 import com.dashcam.domain.model.DeviceHealth
 import com.dashcam.domain.model.RecorderEvent
 import com.dashcam.domain.model.RecorderState
+import com.dashcam.domain.model.VideoEncoding
 import com.dashcam.domain.model.VideoQuality
 import com.dashcam.domain.repository.DeviceHealthMonitor
 import com.dashcam.domain.repository.ImpactDetector
@@ -79,6 +80,13 @@ class RecordingSession(
     private val qualityCap = MutableStateFlow<VideoQuality?>(null)
     private var lowBatteryWarned = false
 
+    /** Event clips waiting for the moments after the event to be recorded; main thread only. */
+    private val pendingEvents = mutableListOf<PendingEvent>()
+    private val recentClips = ArrayDeque<FinishedClip>()
+    private val forcedRolloverAt = MutableStateFlow<Long?>(null)
+    private var eventClipSeconds = 0
+    private val eventClipExporter = EventClipExporter()
+
     /** Bytes per minute of recent clips, to reserve enough space for the next one. */
     private var observedBytesPerMinute: Long? = null
     @Volatile private var storageFullForNextClip = false
@@ -96,6 +104,10 @@ class RecordingSession(
             qualityCap.value = null
             lowBatteryWarned = false
             storageFullForNextClip = false
+            eventClipSeconds = settings.eventClipSeconds
+            pendingEvents.clear()
+            recentClips.clear()
+            forcedRolloverAt.value = null
             camera.setSessionActive(true)
             val now = System.currentTimeMillis()
             _state.value = RecorderState.Recording(now, now, isLocked = false, isAudioMuted = muted)
@@ -156,13 +168,35 @@ class RecordingSession(
 
     private fun onImpact(settings: AppSettings, g: Float) {
         if (_state.value !is RecorderState.Recording) return
-        // Protect the clip that captured the impact and the one that follows it.
-        lockCurrent = true
-        lockNext = true
-        _state.update { (it as? RecorderState.Recording)?.copy(isLocked = true) ?: it }
+        onEvent("Impact detected (%.1f g)".format(g))
         _events.tryEmit(RecorderEvent.ImpactDetected)
-        eventLog.log("Impact detected (%.1f g): clip locked".format(g))
         if (settings.vibrateOnImpact) haptics.alert()
+    }
+
+    /** Marks this moment as an event (a remote button press): same protection as an impact. */
+    fun markEvent() {
+        if (_state.value !is RecorderState.Recording) return
+        onEvent("Event marked")
+        _events.tryEmit(RecorderEvent.EventMarked)
+        haptics.alert()
+    }
+
+    private fun onEvent(description: String) {
+        lockCurrent = true
+        // An event clip covers the moments after the event; without one, keep the next clip too.
+        if (eventClipSeconds == 0) lockNext = true
+        _state.update { (it as? RecorderState.Recording)?.copy(isLocked = true) ?: it }
+        if (eventClipSeconds == 0) {
+            eventLog.log("$description: clip locked")
+            return
+        }
+        val now = System.currentTimeMillis()
+        val after = eventClipSeconds * 1000L / 3
+        val event = PendingEvent(now, fromMillis = now - (eventClipSeconds * 1000L - after), toMillis = now + after)
+        pendingEvents += event
+        eventLog.log("$description: clip locked, saving a ${eventClipSeconds} s event clip")
+        // Start a new clip once the moments after the event are on disk, so it can be cut right away.
+        forcedRolloverAt.value = minOf(forcedRolloverAt.value ?: Long.MAX_VALUE, event.toMillis + ROLLOVER_MARGIN_MS)
     }
 
     private fun onHealth(health: DeviceHealth) {
@@ -223,7 +257,11 @@ class RecordingSession(
                                 return@coroutineScope "storage full"
                             }
                             camera.stopSegment()
+                            clip.stoppedAt = System.currentTimeMillis()
                             active = null
+                            forcedRolloverAt.value = pendingEvents
+                                .filter { it.toMillis > clip.stoppedAt }
+                                .minOfOrNull { it.toMillis + ROLLOVER_MARGIN_MS }
                             lockCurrent = lockNext
                             lockNext = false
                             val next = startClip(settings)
@@ -278,6 +316,7 @@ class RecordingSession(
             withContext(NonCancellable) {
                 active?.let { stopAndFinish(it, lockCurrent) }
                 finishing.joinAll()
+                exportEventClips(sessionEnded = true)
             }
         }
     }
@@ -296,13 +335,15 @@ class RecordingSession(
             (it as? RecorderState.Recording)
                 ?.copy(segmentStartedAtMillis = System.currentTimeMillis(), isLocked = lockCurrent) ?: it
         }
+        // Videos without the burned-in overlay (dual inset, the separate front file) get the same
+        // information as subtitles instead; one GPX track per clip is enough.
+        val mainSubtitles = settings.videoOverlay && !camera.burnsInOverlay
         val telemetry = buildList {
-            if (settings.writeSubtitles || settings.writeGpx) {
-                add(scope.launch { TelemetryWriter(path, settings, location.location).run() })
+            if (mainSubtitles || settings.writeGpx) {
+                add(scope.launch { TelemetryWriter(path, settings, location.location, mainSubtitles, settings.writeGpx).run() })
             }
-            // The front video gets its own subtitles; one GPX track per clip is enough.
-            if (secondaryPath != null && settings.writeSubtitles) {
-                add(scope.launch { TelemetryWriter(secondaryPath, settings.copy(writeGpx = false), location.location).run() })
+            if (secondaryPath != null && settings.videoOverlay) {
+                add(scope.launch { TelemetryWriter(secondaryPath, settings, location.location, true, false).run() })
             }
         }
         return Clip(paths, finalized, telemetry, System.currentTimeMillis())
@@ -326,6 +367,11 @@ class RecordingSession(
             },
             launch {
                 outcome.complete(ClipOutcome.HealthStop(healthStop.filterNotNull().first()))
+            },
+            launch {
+                val at = forcedRolloverAt.filterNotNull().first()
+                delay((at - System.currentTimeMillis()).coerceAtLeast(0))
+                outcome.complete(ClipOutcome.Rollover)
             },
             launch {
                 val cap = qualityCap.filterNotNull().first()
@@ -355,6 +401,7 @@ class RecordingSession(
 
     private suspend fun stopAndFinish(clip: Clip, locked: Boolean) = withContext(NonCancellable) {
         camera.stopSegment()
+        clip.stoppedAt = System.currentTimeMillis()
         finishClip(clip, locked)
     }
 
@@ -363,12 +410,16 @@ class RecordingSession(
         val failure = withTimeoutOrNull(FINALIZE_TIMEOUT_MS) { clip.finalized.await() }
         clip.telemetry.forEach { it.cancelAndJoin() }
         recordings.clearInProgress(clip.paths)
-        if (locked) clip.paths.forEach { recordings.setLocked(it, true) }
+        val finalPaths = if (locked) clip.paths.map { recordings.setLocked(it, true) } else clip.paths
         recordings.refresh()
-        val bytes = withContext(Dispatchers.IO) { clip.paths.sumOf { File(it).length() } }
+        if (failure == null || failure.outOfStorage) {
+            recentClips.addLast(FinishedClip(finalPaths.first(), clip.startedAt, clip.stoppedAt))
+            while (recentClips.size > MAX_RECENT_CLIPS) recentClips.removeFirst()
+        }
+        val bytes = withContext(Dispatchers.IO) { finalPaths.sumOf { File(it).length() } }
         val minutes = (System.currentTimeMillis() - clip.startedAt) / 60_000.0
         if (failure == null && minutes >= 0.5) observedBytesPerMinute = (bytes / minutes).toLong()
-        val name = File(clip.paths.first()).name
+        val name = File(finalPaths.first()).name
         eventLog.log(
             "Clip saved: $name, %.1f MB%s%s".format(
                 bytes / 1_000_000.0,
@@ -376,6 +427,37 @@ class RecordingSession(
                 failure?.let { " (ended early: ${it.message})" } ?: "",
             ),
         )
+        exportEventClips(sessionEnded = false)
+    }
+
+    /**
+     * Cuts event clips whose time window has been fully recorded (or, when the session ended,
+     * whatever part of it was), from the finished clips around the event.
+     */
+    private suspend fun exportEventClips(sessionEnded: Boolean) {
+        val recordedUntil = recentClips.lastOrNull()?.stoppedAt ?: return
+        val ready = pendingEvents.filter { sessionEnded || it.toMillis <= recordedUntil }
+        for (event in ready) {
+            pendingEvents.remove(event)
+            val sources = recentClips
+                .filter { it.stoppedAt >= event.fromMillis && it.startedAt <= event.toMillis }
+                .map { EventClipExporter.Source(it.path, it.startedAt) }
+            if (sources.isEmpty()) {
+                eventLog.log("Event clip skipped: its clips weren't saved")
+                continue
+            }
+            val output = File(recordings.createEventFile(event.atMillis))
+            val saved = withContext(Dispatchers.IO) {
+                eventClipExporter.export(sources, event.fromMillis, minOf(event.toMillis, recordedUntil), output)
+            }
+            recordings.refresh()
+            if (saved) {
+                eventLog.log("Event clip saved: ${output.name}, %.1f MB".format(output.length() / 1_000_000.0))
+                _events.tryEmit(RecorderEvent.EventClipSaved)
+            } else {
+                eventLog.log("Event clip failed: couldn't cut it from ${sources.size} clip(s)")
+            }
+        }
     }
 
     private suspend fun enforceStorage(setup: CameraSetup, settings: AppSettings): EnforceStorageLimitUseCase.Result {
@@ -426,7 +508,13 @@ class RecordingSession(
         val finalized: CompletableDeferred<ClipFailure?>,
         val telemetry: List<Job>,
         val startedAt: Long,
-    )
+    ) {
+        var stoppedAt: Long = Long.MAX_VALUE
+    }
+
+    private class FinishedClip(val path: String, val startedAt: Long, val stoppedAt: Long)
+
+    private class PendingEvent(val atMillis: Long, val fromMillis: Long, val toMillis: Long)
 
     private sealed interface ClipOutcome {
         data object Rollover : ClipOutcome
@@ -437,6 +525,9 @@ class RecordingSession(
 
     companion object {
         private const val FINALIZE_TIMEOUT_MS = 5_000L
+        /** Extra time recorded past an event clip's end before the forced handover. */
+        private const val ROLLOVER_MARGIN_MS = 1_000L
+        private const val MAX_RECENT_CLIPS = 4
         private const val RETRY_INITIAL_MS = 2_000L
         private const val RETRY_MAX_MS = 30_000L
         /** Clips need a moment before the first data reaches the file. */
@@ -444,17 +535,8 @@ class RecordingSession(
         private const val STALL_CHECK_MS = 5_000L
         private const val STALL_MS = 20_000L
 
-        /** Typical encoder output until real clips have been measured (generous on purpose). */
-        fun estimatedBytesPerMinute(setup: CameraSetup): Long {
-            val megabitsPerSecond = when (setup.quality) {
-                VideoQuality.SD -> 4
-                VideoQuality.HD -> 10
-                VideoQuality.FHD -> 20
-                VideoQuality.UHD -> 50
-            }
-            val files = if (setup.facing == CameraFacing.BOTH && setup.separateFiles) 2 else 1
-            return megabitsPerSecond * 1_000_000L / 8 * 60 * files
-        }
+        /** Expected encoder output until real clips have been measured. */
+        fun estimatedBytesPerMinute(setup: CameraSetup): Long = VideoEncoding.bytesPerMinute(setup)
     }
 }
 

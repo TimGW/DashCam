@@ -10,6 +10,15 @@ enum class VideoAspectRatio { RATIO_16_9, RATIO_4_3 }
 
 enum class SpeedUnit { KMH, MPH }
 
+/** [INFINITY] keeps the lens focused on the road instead of the windscreen, dirt or raindrops. */
+enum class FocusMode { AUTO, INFINITY }
+
+/** Encoder bitrate relative to the resolution; [AUTO] leaves it to the device. */
+enum class VideoBitrate { AUTO, LOW, HIGH, MAXIMUM }
+
+/** Seconds of video kept around an event (impact or manual mark); 0 turns event clips off. */
+val EventClipSecondsOptions = listOf(0, 30, 60)
+
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 /** How long after navigation ends a recording that navigation started is stopped; null = never. */
@@ -38,6 +47,18 @@ data class AppSettings(
     val aspectRatio: VideoAspectRatio = VideoAspectRatio.RATIO_16_9,
     /** Start at the camera's widest zoom, which switches to the ultra-wide lens where there is one. */
     val wideAngle: Boolean = false,
+    val focusMode: FocusMode = FocusMode.AUTO,
+    val bitrate: VideoBitrate = VideoBitrate.AUTO,
+    /** 30 or 60. */
+    val frameRate: Int = 30,
+    /** Electronic stabilization; crops the image a little. */
+    val stabilization: Boolean = false,
+    /** Burn the date and time into the video itself, optionally with speed and coordinates. */
+    val videoOverlay: Boolean = true,
+    val overlaySpeed: Boolean = false,
+    val overlayLocation: Boolean = false,
+    /** Extra text in the overlay, e.g. a number plate. */
+    val overlayLabel: String = "",
     val recordAudio: Boolean = true,
     val segmentMinutes: Int = 3,
     val loopRecording: Boolean = true,
@@ -46,7 +67,10 @@ data class AppSettings(
     val gSensorEnabled: Boolean = true,
     val gSensorSensitivity: GSensorSensitivity = GSensorSensitivity.NORMAL,
     val vibrateOnImpact: Boolean = true,
-    val writeSubtitles: Boolean = true,
+    /** See [EventClipSecondsOptions]. */
+    val eventClipSeconds: Int = 30,
+    /** A Bluetooth / headset media button, or volume up while DashCam is open, marks an event. */
+    val remoteButtonMarksEvent: Boolean = false,
     val writeGpx: Boolean = false,
     val speedUnit: SpeedUnit = SpeedUnit.KMH,
     val autoStartOnLaunch: Boolean = false,
@@ -64,7 +88,10 @@ data class AppSettings(
     val isPinEnabled: Boolean get() = pinHash != null
 
     val cameraSetup: CameraSetup
-        get() = CameraSetup(cameraFacing, videoQuality, separateCameraFiles, aspectRatio, wideAngle)
+        get() = CameraSetup(
+            cameraFacing, videoQuality, separateCameraFiles, aspectRatio, wideAngle,
+            focusMode, bitrate, frameRate, stabilization, videoOverlay,
+        )
 
     companion object {
         val SegmentMinuteOptions = listOf(1, 3, 5, 10)
@@ -80,4 +107,9 @@ data class CameraSetup(
     val separateFiles: Boolean,
     val aspectRatio: VideoAspectRatio,
     val wideAngle: Boolean,
+    val focusMode: FocusMode = FocusMode.AUTO,
+    val bitrate: VideoBitrate = VideoBitrate.AUTO,
+    val frameRate: Int = 30,
+    val stabilization: Boolean = false,
+    val overlay: Boolean = false,
 )

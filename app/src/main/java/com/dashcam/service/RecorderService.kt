@@ -10,7 +10,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
 import android.os.PowerManager
+import android.view.KeyEvent
+import androidx.core.content.IntentCompat
+import kotlinx.coroutines.flow.first
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -34,6 +39,7 @@ class RecorderService : LifecycleService() {
     private val session get() = container.recordingSession
     private val sessionMarker get() = getSharedPreferences(MARKER_PREFS, MODE_PRIVATE)
     private var wakeLock: PowerManager.WakeLock? = null
+    private var mediaSession: MediaSession? = null
     private var running = false
 
     override fun onCreate() {
@@ -106,12 +112,50 @@ class RecorderService : LifecycleService() {
         sessionMarker.edit().putBoolean(KEY_ACTIVE, true).commit()
         acquireWakeLock()
         lifecycleScope.launch {
+            if (container.settingsRepository.settings.first().remoteButtonMarksEvent) startRemoteButton()
+        }
+        lifecycleScope.launch {
             session.begin().join()
+            stopRemoteButton()
             sessionMarker.edit().putBoolean(KEY_ACTIVE, false).commit()
             running = false
             ServiceCompat.stopForeground(this@RecorderService, ServiceCompat.STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
+    }
+
+    /**
+     * Claims media buttons (Bluetooth headsets, steering-wheel play/pause) while recording, so a
+     * press marks an event. Android routes buttons to the last active media session, so an app
+     * that is playing music at the time may keep receiving them instead.
+     */
+    private fun startRemoteButton() {
+        mediaSession = MediaSession(this, "DashCam").apply {
+            setCallback(object : MediaSession.Callback() {
+                override fun onMediaButtonEvent(mediaButtonIntent: Intent): Boolean {
+                    val event = IntentCompat.getParcelableExtra(mediaButtonIntent, Intent.EXTRA_KEY_EVENT, KeyEvent::class.java)
+                        ?: return false
+                    if (event.keyCode !in REMOTE_KEYS) return false
+                    if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                        container.eventLog.log("Remote button pressed")
+                        session.markEvent()
+                    }
+                    return true
+                }
+            })
+            setPlaybackState(
+                PlaybackState.Builder()
+                    .setActions(PlaybackState.ACTION_PLAY_PAUSE or PlaybackState.ACTION_PLAY or PlaybackState.ACTION_PAUSE)
+                    .setState(PlaybackState.STATE_PLAYING, 0, 1f)
+                    .build(),
+            )
+            isActive = true
+        }
+    }
+
+    private fun stopRemoteButton() {
+        mediaSession?.release()
+        mediaSession = null
     }
 
     private fun goForeground(): Boolean {
@@ -178,6 +222,7 @@ class RecorderService : LifecycleService() {
 
     override fun onDestroy() {
         wakeLock?.takeIf { it.isHeld }?.release()
+        stopRemoteButton()
         session.end()
         super.onDestroy()
     }
@@ -193,6 +238,10 @@ class RecorderService : LifecycleService() {
         private const val ALERT_CHANNEL_ID = "alerts"
         private const val MARKER_PREFS = "recorder_session"
         private const val KEY_ACTIVE = "active"
+        private val REMOTE_KEYS = setOf(
+            KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, KeyEvent.KEYCODE_MEDIA_PLAY, KeyEvent.KEYCODE_MEDIA_PAUSE,
+            KeyEvent.KEYCODE_HEADSETHOOK,
+        )
         private const val WAKE_LOCK_TIMEOUT_MS = 12 * 60 * 60 * 1000L
         private const val ACTION_START = "com.dashcam.action.START"
         private const val ACTION_STOP = "com.dashcam.action.STOP"

@@ -83,6 +83,7 @@ class EnforceStorageLimitUseCaseTest {
         override fun observeRecordings(): Flow<List<Recording>> = MutableStateFlow(clips.toList())
         override suspend fun getRecordings() = clips.toList()
         override suspend fun createVideoFile() = "video"
+        override suspend fun createEventFile(eventAtMillis: Long) = "event"
         override fun secondaryVideoFile(videoPath: String) = "${videoPath}_front"
         override suspend fun createPhotoFile() = "photo"
         override suspend fun setLocked(id: String, locked: Boolean) = id

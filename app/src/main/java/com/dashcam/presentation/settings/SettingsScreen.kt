@@ -14,7 +14,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.outlined.AspectRatio
 import androidx.compose.material.icons.outlined.BatteryChargingFull
+import androidx.compose.material.icons.automirrored.outlined.Label
 import androidx.compose.material.icons.outlined.CarCrash
+import androidx.compose.material.icons.outlined.CenterFocusWeak
+import androidx.compose.material.icons.outlined.ContentCut
+import androidx.compose.material.icons.outlined.DataUsage
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.SettingsRemote
+import androidx.compose.material.icons.outlined.SlowMotionVideo
+import androidx.compose.material.icons.outlined.Straighten
+import androidx.compose.material.icons.outlined.TextFields
 import androidx.compose.material.icons.outlined.Cameraswitch
 import androidx.compose.material.icons.outlined.Colorize
 import androidx.compose.material.icons.outlined.DarkMode
@@ -38,7 +47,6 @@ import androidx.compose.material.icons.outlined.Sensors
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.StopCircle
 import androidx.compose.material.icons.outlined.Storage
-import androidx.compose.material.icons.outlined.Subtitles
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.Vibration
 import androidx.compose.material.icons.outlined.VideoLibrary
@@ -69,7 +77,11 @@ import com.dashcam.R
 import com.dashcam.data.camera.supportsDualCamera
 import com.dashcam.domain.model.AppSettings
 import com.dashcam.domain.model.CameraFacing
+import com.dashcam.domain.model.EventClipSecondsOptions
+import com.dashcam.domain.model.FocusMode
 import com.dashcam.domain.model.GSensorSensitivity
+import com.dashcam.domain.model.VideoBitrate
+import com.dashcam.domain.model.VideoEncoding
 import com.dashcam.domain.model.NavigationStopDelay
 import com.dashcam.domain.model.SpeedUnit
 import com.dashcam.domain.model.ThemeMode
@@ -155,6 +167,86 @@ private fun LazyListScope.settingsContent(
         )
     }
     item {
+        ChoiceSetting(
+            title = stringResource(R.string.settings_focus),
+            icon = Icons.Outlined.CenterFocusWeak,
+            options = FocusMode.entries,
+            selected = s.focusMode,
+            label = { stringResource(if (it == FocusMode.AUTO) R.string.focus_auto else R.string.focus_infinity) },
+            onSelect = { f -> update { it.copy(focusMode = f) } },
+        )
+    }
+    item {
+        ChoiceSetting(
+            title = stringResource(R.string.settings_bitrate),
+            icon = Icons.Outlined.DataUsage,
+            options = VideoBitrate.entries,
+            selected = s.bitrate,
+            label = { b ->
+                val name = stringResource(b.labelRes())
+                if (b == VideoBitrate.AUTO) name
+                else stringResource(R.string.bitrate_value, name, VideoEncoding.megabitsPerSecond(s.cameraSetup.copy(bitrate = b)))
+            },
+            onSelect = { b -> update { it.copy(bitrate = b) } },
+        )
+    }
+    item {
+        ChoiceSetting(
+            title = stringResource(R.string.settings_frame_rate),
+            icon = Icons.Outlined.SlowMotionVideo,
+            options = listOf(30, 60),
+            selected = s.frameRate,
+            label = { stringResource(R.string.frame_rate_fps, it) },
+            onSelect = { fps -> update { it.copy(frameRate = fps) } },
+        )
+    }
+    item {
+        SwitchSetting(
+            title = stringResource(R.string.settings_stabilization),
+            summary = stringResource(R.string.settings_stabilization_summary),
+            icon = Icons.Outlined.Straighten,
+            checked = s.stabilization,
+            onCheckedChange = { v -> update { it.copy(stabilization = v) } },
+        )
+    }
+    item {
+        SwitchSetting(
+            title = stringResource(R.string.settings_overlay),
+            summary = stringResource(R.string.settings_overlay_summary),
+            icon = Icons.Outlined.TextFields,
+            checked = s.videoOverlay,
+            onCheckedChange = { v -> update { it.copy(videoOverlay = v) } },
+        )
+    }
+    item {
+        SwitchSetting(
+            title = stringResource(R.string.settings_overlay_speed),
+            icon = Icons.Outlined.Speed,
+            checked = s.overlaySpeed,
+            onCheckedChange = { v -> update { it.copy(overlaySpeed = v) } },
+            enabled = s.videoOverlay,
+        )
+    }
+    item {
+        SwitchSetting(
+            title = stringResource(R.string.settings_overlay_location),
+            icon = Icons.Outlined.LocationOn,
+            checked = s.overlayLocation,
+            onCheckedChange = { v -> update { it.copy(overlayLocation = v) } },
+            enabled = s.videoOverlay,
+        )
+    }
+    item {
+        TextSetting(
+            title = stringResource(R.string.settings_overlay_label),
+            icon = Icons.AutoMirrored.Outlined.Label,
+            value = s.overlayLabel,
+            emptyLabel = stringResource(R.string.settings_overlay_label_empty),
+            onValueChange = { v -> update { it.copy(overlayLabel = v) } },
+            enabled = s.videoOverlay,
+        )
+    }
+    item {
         SwitchSetting(
             title = stringResource(R.string.settings_audio),
             icon = Icons.Outlined.Mic,
@@ -189,7 +281,18 @@ private fun LazyListScope.settingsContent(
             icon = Icons.Outlined.Storage,
             options = AppSettings.MaxStorageGbOptions,
             selected = s.maxStorageGb,
-            label = { if (it == 0) stringResource(R.string.storage_unlimited) else stringResource(R.string.storage_gb, it) },
+            label = { gb ->
+                if (gb == 0) {
+                    stringResource(R.string.storage_unlimited)
+                } else {
+                    val minutes = (gb * 1_000_000_000L / VideoEncoding.bytesPerMinute(s.cameraSetup)).toInt()
+                    if (minutes < 60) {
+                        stringResource(R.string.storage_gb_estimate_minutes, gb, minutes)
+                    } else {
+                        stringResource(R.string.storage_gb_estimate, gb, minutes / 60, minutes % 60)
+                    }
+                }
+            },
             onSelect = { gb -> update { it.copy(maxStorageGb = gb) } },
         )
     }
@@ -231,17 +334,29 @@ private fun LazyListScope.settingsContent(
             enabled = s.gSensorEnabled,
         )
     }
-
-    item { SectionHeader(stringResource(R.string.settings_section_location)) }
     item {
-        SwitchSetting(
-            title = stringResource(R.string.settings_subtitles),
-            summary = stringResource(R.string.settings_subtitles_summary),
-            icon = Icons.Outlined.Subtitles,
-            checked = s.writeSubtitles,
-            onCheckedChange = { v -> update { it.copy(writeSubtitles = v) } },
+        ChoiceSetting(
+            title = stringResource(R.string.settings_event_clip),
+            icon = Icons.Outlined.ContentCut,
+            options = EventClipSecondsOptions,
+            selected = s.eventClipSeconds,
+            label = {
+                if (it == 0) stringResource(R.string.event_clip_off) else stringResource(R.string.event_clip_seconds, it)
+            },
+            onSelect = { v -> update { it.copy(eventClipSeconds = v) } },
         )
     }
+    item {
+        SwitchSetting(
+            title = stringResource(R.string.settings_remote_button),
+            summary = stringResource(R.string.settings_remote_button_summary),
+            icon = Icons.Outlined.SettingsRemote,
+            checked = s.remoteButtonMarksEvent,
+            onCheckedChange = { v -> update { it.copy(remoteButtonMarksEvent = v) } },
+        )
+    }
+
+    item { SectionHeader(stringResource(R.string.settings_section_location)) }
     item {
         SwitchSetting(
             title = stringResource(R.string.settings_gpx),
@@ -515,6 +630,13 @@ private fun NavigationStopDelay.labelRes() = when (this) {
     NavigationStopDelay.ONE_MINUTE -> R.string.navigation_stop_one_minute
     NavigationStopDelay.TWO_MINUTES -> R.string.navigation_stop_two_minutes
     NavigationStopDelay.FIVE_MINUTES -> R.string.navigation_stop_five_minutes
+}
+
+private fun VideoBitrate.labelRes() = when (this) {
+    VideoBitrate.AUTO -> R.string.bitrate_auto
+    VideoBitrate.LOW -> R.string.bitrate_low
+    VideoBitrate.HIGH -> R.string.bitrate_high
+    VideoBitrate.MAXIMUM -> R.string.bitrate_maximum
 }
 
 private fun GSensorSensitivity.labelRes() = when (this) {

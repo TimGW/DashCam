@@ -5,7 +5,15 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CaptureRequest
 import android.util.Log
+import android.util.Range
+import androidx.annotation.OptIn
+import androidx.camera.camera2.interop.Camera2CameraControl
+import androidx.camera.camera2.interop.Camera2CameraInfo
+import androidx.camera.camera2.interop.CaptureRequestOptions
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.annotation.MainThread
 import androidx.camera.core.AspectRatio
 import androidx.camera.core.Camera
@@ -17,6 +25,8 @@ import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.core.UseCaseGroup
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.AspectRatioStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.lifecycle.awaitInstance
 import androidx.camera.video.FallbackStrategy
@@ -34,7 +44,9 @@ import androidx.lifecycle.LifecycleRegistry
 import com.dashcam.domain.model.CameraFacing
 import com.dashcam.domain.model.CameraSetup
 import com.dashcam.domain.model.CameraState
+import com.dashcam.domain.model.FocusMode
 import com.dashcam.domain.model.VideoAspectRatio
+import com.dashcam.domain.model.VideoEncoding
 import com.dashcam.domain.model.VideoQuality
 import com.dashcam.domain.repository.CameraController
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -67,13 +79,18 @@ interface CameraPreviewHost {
  * either the preview is on screen or a background recording session is active.
  */
 @MainThread
-class CameraEngine(private val context: Context) : CameraController, CameraPreviewHost, LifecycleOwner {
+class CameraEngine(
+    private val context: Context,
+    private val videoOverlay: VideoOverlay,
+) : CameraController, CameraPreviewHost, LifecycleOwner {
 
     private val registry = LifecycleRegistry(this).apply { currentState = Lifecycle.State.CREATED }
     override val lifecycle: Lifecycle get() = registry
 
     private val mainExecutor = ContextCompat.getMainExecutor(context)
-    private val preview = Preview.Builder().build()
+    /** Matches the recording's aspect ratio, so the viewfinder shows exactly what is recorded. */
+    private var preview = previewFor(VideoAspectRatio.RATIO_16_9)
+    private var previewSurfaceProvider: Preview.SurfaceProvider? = null
     private val secondaryPreview = Preview.Builder().build()
     private val roundedInsetEffect by lazy { RoundedInsetEffect() }
     private var provider: ProcessCameraProvider? = null
@@ -94,6 +111,10 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
 
     val isRecordingSegment: Boolean get() = activeRecording != null
 
+    /** Whether the main video gets the burned-in overlay (not possible in every camera mode). */
+    var burnsInOverlay = false
+        private set
+
     /** True when the front camera records its own file next to the main one. */
     val recordsSecondaryVideo: Boolean get() = secondaryVideoCapture != null
 
@@ -109,26 +130,52 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
         if ((config == boundConfig && camera != null) || activeRecording != null) return@withLock
         try {
             val cameraProvider = provider ?: ProcessCameraProvider.awaitInstance(context).also { provider = it }
+            if (boundConfig?.setup?.aspectRatio != setup.aspectRatio) {
+                cameraProvider.unbindAll()
+                preview = previewFor(setup.aspectRatio)
+            }
             secondaryVideoCapture = null
             if (dual && cameraProvider.bindDual(normalized)) {
                 boundConfig = config
                 return@withLock
             }
             val selector = cameraProvider.selectorFor(setup.facing)
-            val video = videoCaptureFor(setup.quality, setup.aspectRatio)
             val image = ImageCapture.Builder()
                 .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                 .build()
             targetRotation?.let { image.targetRotation = it }
             cameraProvider.unbindAll()
-            // Some devices can't stream preview + video + photo at once; fall back to no photos.
-            val (boundCamera, photoSupported) = try {
-                cameraProvider.bindToLifecycle(this, selector, preview, video, image) to true
-            } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "Photo capture not supported alongside video", e)
-                cameraProvider.bindToLifecycle(this, selector, preview, video) to false
+            // Some devices can't combine everything: drop 60 fps / stabilization first, then photos.
+            var bound: Triple<Camera, VideoCapture<Recorder>, Boolean>? = null
+            var lastError: IllegalArgumentException? = null
+            attempts@ for (attempt in setup.withFallbacks()) {
+                for (withPhoto in listOf(true, false)) {
+                    val video = videoCaptureFor(attempt)
+                    val group = UseCaseGroup.Builder().addUseCase(preview).addUseCase(video)
+                        .apply { if (withPhoto) addUseCase(image) }
+                        .apply { if (attempt.overlay) addEffect(videoOverlay.effect) }
+                        .build()
+                    try {
+                        val boundCamera = cameraProvider.bindToLifecycle(this, selector, group)
+                        // Rather than refuse a combination, CameraX may share one small stream
+                        // between all outputs: give up photos before giving up resolution.
+                        if (withPhoto && video.isBelow(attempt.quality)) {
+                            Log.w(TAG, "Video downscaled to ${video.resolutionInfo?.resolution} with photos; retrying without")
+                            cameraProvider.unbindAll()
+                            continue
+                        }
+                        bound = Triple(boundCamera, video, withPhoto)
+                        if (attempt != setup) Log.w(TAG, "Bound with fallback settings: $attempt")
+                        break@attempts
+                    } catch (e: IllegalArgumentException) {
+                        lastError = e
+                        cameraProvider.unbindAll()
+                    }
+                }
             }
-            onCameraBound(boundCamera, setup.wideAngle)
+            val (boundCamera, video, photoSupported) = bound ?: throw lastError ?: IllegalStateException("No camera binding")
+            onCameraBound(boundCamera, setup)
+            burnsInOverlay = setup.overlay
             videoCapture = video
             imageCapture = image.takeIf { photoSupported }
             boundConfig = config
@@ -146,6 +193,7 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
     }
 
     override fun attachPreview(surfaceProvider: Preview.SurfaceProvider?) {
+        previewSurfaceProvider = surfaceProvider
         preview.surfaceProvider = surfaceProvider
     }
 
@@ -282,16 +330,35 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
      * Tracks the newly bound camera. With [wideAngle], zooms out to the widest ratio (the
      * ultra-wide lens on multi-camera phones) once the camera is open; zooming fails before that.
      */
-    private fun onCameraBound(boundCamera: Camera, wideAngle: Boolean) {
+    private fun onCameraBound(boundCamera: Camera, setup: CameraSetup) {
         camera?.cameraInfo?.cameraState?.removeObservers(this)
         camera = boundCamera
-        if (!wideAngle) return
+        if (!setup.wideAngle && setup.focusMode == FocusMode.AUTO) return
+        // Zoom and capture request options only stick once the camera is open.
         boundCamera.cameraInfo.cameraState.observe(this) { cameraState ->
             if (cameraState.type != CameraXState.Type.OPEN || camera !== boundCamera) return@observe
-            val minRatio = boundCamera.cameraInfo.zoomState.value?.minZoomRatio ?: return@observe
-            boundCamera.cameraControl.setZoomRatio(minRatio)
-            _state.update { it.copy(zoomRatio = minRatio) }
+            if (setup.wideAngle) {
+                boundCamera.cameraInfo.zoomState.value?.minZoomRatio?.let { minRatio ->
+                    boundCamera.cameraControl.setZoomRatio(minRatio)
+                    _state.update { it.copy(zoomRatio = minRatio) }
+                }
+            }
+            if (setup.focusMode == FocusMode.INFINITY) focusAtInfinity(boundCamera)
         }
+    }
+
+    /** Turns autofocus off and focuses at infinity, unless the lens has a fixed focus anyway. */
+    @OptIn(ExperimentalCamera2Interop::class)
+    private fun focusAtInfinity(boundCamera: Camera) {
+        val info = Camera2CameraInfo.from(boundCamera.cameraInfo)
+        val minFocusDistance = info.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f
+        if (minFocusDistance <= 0f) return
+        Camera2CameraControl.from(boundCamera.cameraControl).setCaptureRequestOptions(
+            CaptureRequestOptions.Builder()
+                .setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
+                .setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, 0f)
+                .build(),
+        )
     }
 
     private fun updateLifecycle() {
@@ -323,11 +390,15 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
         // Concurrent streaming is only guaranteed up to 720p, so retry lower before giving up.
         val qualities = listOf(quality, VideoQuality.HD).distinct().filter { it <= quality }
         for (q in qualities) {
-            val video = videoCaptureFor(q, setup.aspectRatio)
+            val video = videoCaptureFor(setup.copy(quality = q))
             // Sharing one use case group makes CameraX composite; separate groups stay independent.
-            val secondaryVideo = if (setup.separateFiles) videoCaptureFor(q, setup.aspectRatio) else null
+            // The front file gets no overlay; an effect instance serves one group.
+            val secondaryVideo = if (setup.separateFiles) videoCaptureFor(setup.copy(quality = q, overlay = false)) else null
             val group = UseCaseGroup.Builder().addUseCase(preview).addUseCase(video)
                 .apply { if (secondaryVideo == null) addEffect(roundedInsetEffect) }
+                // No overlay when composited: a video effect alongside the composition leaves the
+                // video without frames (tested on a Pixel 10, CameraX 1.5).
+                .apply { if (setup.overlay && secondaryVideo != null) addEffect(videoOverlay.effect) }
                 .build()
             val configs = if (secondaryVideo != null) {
                 val secondaryGroup = UseCaseGroup.Builder()
@@ -347,7 +418,8 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
             try {
                 unbindAll()
                 val boundCamera = bindToLifecycle(configs).cameras.first()
-                onCameraBound(boundCamera, setup.wideAngle)
+                onCameraBound(boundCamera, setup)
+                burnsInOverlay = setup.overlay && secondaryVideo != null
                 videoCapture = video
                 secondaryVideoCapture = secondaryVideo
                 imageCapture = null
@@ -356,7 +428,6 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
                     hasFlash = boundCamera.cameraInfo.hasFlashUnit(),
                     photoSupported = false,
                     hasSecondaryPreview = secondaryVideo != null,
-                    hasCompositedPreview = secondaryVideo == null,
                 )
                 return true
             } catch (e: Exception) {
@@ -367,20 +438,63 @@ class CameraEngine(private val context: Context) : CameraController, CameraPrevi
         return false
     }
 
-    private fun videoCaptureFor(quality: VideoQuality, aspectRatio: VideoAspectRatio): VideoCapture<Recorder> {
+    private fun videoCaptureFor(setup: CameraSetup): VideoCapture<Recorder> {
         val recorder = Recorder.Builder()
             .setQualitySelector(
-                QualitySelector.from(quality.toCameraX(), FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)),
+                // Try every lower quality in order: with a single quality, CameraX's own fallback
+                // skipped 1080p (4K at 4:3 on a Pixel 10 came out as 1024x768, not 1600x1200).
+                QualitySelector.fromOrderedList(
+                    VideoQuality.entries.filter { it <= setup.quality }.reversed().map { it.toCameraX() },
+                    FallbackStrategy.lowerQualityOrHigherThan(Quality.SD),
+                ),
             )
             .setAspectRatio(
-                when (aspectRatio) {
+                when (setup.aspectRatio) {
                     VideoAspectRatio.RATIO_16_9 -> AspectRatio.RATIO_16_9
                     VideoAspectRatio.RATIO_4_3 -> AspectRatio.RATIO_4_3
                 },
             )
+            .apply { VideoEncoding.targetBitsPerSecond(setup)?.let(::setTargetVideoEncodingBitRate) }
             .build()
-        return VideoCapture.withOutput(recorder).also { video -> targetRotation?.let { video.targetRotation = it } }
+        return VideoCapture.Builder(recorder)
+            .apply { if (setup.frameRate >= 60) setTargetFrameRate(Range(60, 60)) }
+            .setVideoStabilizationEnabled(setup.stabilization)
+            .apply { targetRotation?.let(::setTargetRotation) }
+            .build()
     }
+
+    private fun previewFor(aspectRatio: VideoAspectRatio): Preview = Preview.Builder()
+        .setResolutionSelector(
+            ResolutionSelector.Builder()
+                .setAspectRatioStrategy(
+                    when (aspectRatio) {
+                        VideoAspectRatio.RATIO_16_9 -> AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY
+                        VideoAspectRatio.RATIO_4_3 -> AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY
+                    },
+                )
+                .build(),
+        )
+        .build()
+        .also { new ->
+            new.surfaceProvider = previewSurfaceProvider
+            targetRotation?.let { new.targetRotation = it }
+        }
+
+    /** Whether the bound video stream is clearly smaller than [quality] asks for. */
+    private fun VideoCapture<Recorder>.isBelow(quality: VideoQuality): Boolean {
+        val size = resolutionInfo?.resolution ?: return false
+        val expectedShortSide = when (quality) {
+            VideoQuality.SD -> 480
+            VideoQuality.HD -> 720
+            VideoQuality.FHD -> 1080
+            VideoQuality.UHD -> 2160
+        }
+        return minOf(size.width, size.height) < expectedShortSide * 9 / 10
+    }
+
+    /** The requested setup, then without the extras that devices most often can't combine. */
+    private fun CameraSetup.withFallbacks(): List<CameraSetup> =
+        listOf(this, copy(frameRate = 30, stabilization = false)).distinct()
 
     private fun ProcessCameraProvider.selectorFor(facing: CameraFacing): CameraSelector {
         val preferred = when (facing) {

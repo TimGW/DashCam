@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -15,7 +16,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.dashcam.domain.model.AppSettings
+import com.dashcam.domain.model.RecorderState
 import com.dashcam.domain.repository.PinSession
+import com.dashcam.domain.repository.RecorderController
 import com.dashcam.domain.repository.SettingsRepository
 import com.dashcam.presentation.common.containerViewModelFactory
 import com.dashcam.presentation.navigation.DashCamNavHost
@@ -27,17 +30,25 @@ import kotlinx.coroutines.flow.stateIn
 class MainViewModel(
     settingsRepository: SettingsRepository,
     private val pinSession: PinSession,
+    private val recorder: RecorderController,
 ) : ViewModel() {
     val settings: StateFlow<AppSettings?> =
         settingsRepository.settings.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     fun onAppBackgrounded() = pinSession.lock()
+
+    /** Volume up / camera key from a Bluetooth shutter remote; true when it was used. */
+    fun onRemoteKey(event: KeyEvent): Boolean {
+        if (settings.value?.remoteButtonMarksEvent != true || recorder.state.value !is RecorderState.Recording) return false
+        if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) recorder.markEvent()
+        return true
+    }
 }
 
 class MainActivity : ComponentActivity() {
 
     private val viewModel: MainViewModel by viewModels {
-        containerViewModelFactory { MainViewModel(it.settingsRepository, it.pinSession) }
+        containerViewModelFactory { MainViewModel(it.settingsRepository, it.pinSession, it.recorderController) }
     }
     private var startRecordingRequest by mutableStateOf(false)
     private var minimizeAfterStart by mutableStateOf(false)
@@ -59,6 +70,11 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode in REMOTE_KEYS && viewModel.onRemoteKey(event)) return true
+        return super.dispatchKeyEvent(event)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -105,6 +121,8 @@ class MainActivity : ComponentActivity() {
     companion object {
         const val EXTRA_START_RECORDING = "com.dashcam.extra.START_RECORDING"
         private const val EXTRA_MINIMIZE_AFTER_START = "com.dashcam.extra.MINIMIZE_AFTER_START"
+        /** What Bluetooth "camera shutter" remotes send. */
+        private val REMOTE_KEYS = setOf(KeyEvent.KEYCODE_VOLUME_UP, KeyEvent.KEYCODE_CAMERA)
         private const val EXTRA_RETURN_TO_PACKAGE = "com.dashcam.extra.RETURN_TO_PACKAGE"
 
         /**

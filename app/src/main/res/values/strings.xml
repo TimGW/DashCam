@@ -43,8 +43,10 @@
     <string name="permission_grant">Grant access</string>
     <string name="msg_clip_locked">Clip locked. It won\'t be overwritten.</string>
     <string name="msg_clip_unlocked">Clip unlocked</string>
-    <string name="msg_impact_detected">Impact detected. This clip and the next one are locked.</string>
+    <string name="msg_impact_detected">Impact detected. This clip is locked.</string>
     <string name="msg_photo_saved">Photo saved</string>
+    <string name="msg_event_marked">Event marked. This clip is locked.</string>
+    <string name="msg_event_clip_saved">Event clip saved</string>
     <string name="msg_photo_failed">Couldn\'t take a photo</string>
     <string name="msg_storage_full">Storage is full. Recording stopped.</string>
     <string name="msg_stop_to_switch_camera">Stop recording to switch cameras</string>
@@ -99,6 +101,8 @@
     <string name="storage_free">%1$s free on device</string>
     <string name="storage_unlimited">Unlimited</string>
     <string name="storage_gb">%1$d GB</string>
+    <string name="storage_gb_estimate">%1$d GB · about %2$d h %3$02d min of video</string>
+    <string name="storage_gb_estimate_minutes">%1$d GB · about %2$d min of video</string>
 
     <!-- PIN -->
     <string name="pin_lock_title">Recordings lock</string>
@@ -128,6 +132,25 @@
     <string name="settings_aspect_ratio">Aspect ratio</string>
     <string name="settings_wide_angle">Wide angle</string>
     <string name="settings_wide_angle_summary">Start at the widest zoom, using the ultra-wide lens if your phone has one</string>
+    <string name="settings_focus">Focus</string>
+    <string name="focus_auto">Auto</string>
+    <string name="focus_infinity">Infinity (ignore the windscreen)</string>
+    <string name="settings_bitrate">Bitrate</string>
+    <string name="bitrate_auto">Auto</string>
+    <string name="bitrate_low">Low</string>
+    <string name="bitrate_high">High</string>
+    <string name="bitrate_maximum">Maximum</string>
+    <string name="bitrate_value">%1$s (%2$d Mbit/s)</string>
+    <string name="settings_frame_rate">Frame rate</string>
+    <string name="frame_rate_fps">%1$d fps</string>
+    <string name="settings_stabilization">Stabilization</string>
+    <string name="settings_stabilization_summary">Smooths out vibrations. Crops the image slightly.</string>
+    <string name="settings_overlay">Date and time in video</string>
+    <string name="settings_overlay_summary">Burned into the recording, so it stays with shared clips</string>
+    <string name="settings_overlay_speed">Speed in video</string>
+    <string name="settings_overlay_location">GPS coordinates in video</string>
+    <string name="settings_overlay_label">Label in video</string>
+    <string name="settings_overlay_label_empty">None (e.g. your number plate)</string>
     <string name="settings_audio">Record audio</string>
     <string name="settings_clip_length">Clip length</string>
     <string name="settings_loop_recording">Loop recording</string>
@@ -139,8 +162,11 @@
     <string name="settings_g_sensor_summary">Lock the clip when an impact is detected</string>
     <string name="settings_g_sensor_sensitivity">G-sensor sensitivity</string>
     <string name="settings_vibrate_on_impact">Vibrate on impact</string>
-    <string name="settings_subtitles">Subtitle file</string>
-    <string name="settings_subtitles_summary">Save date, speed and coordinates as subtitles (.srt) shown during playback</string>
+    <string name="settings_event_clip">Event clip</string>
+    <string name="event_clip_off">Off (lock whole clips)</string>
+    <string name="event_clip_seconds">%1$d seconds around the event</string>
+    <string name="settings_remote_button">Remote button marks event</string>
+    <string name="settings_remote_button_summary">A Bluetooth or headset play/pause button, or volume up while DashCam is open, saves the moment</string>
     <string name="settings_gpx">GPX track</string>
     <string name="settings_gpx_summary">Save a GPS track (.gpx) for each clip</string>
     <string name="settings_speed_unit">Speed unit</string>

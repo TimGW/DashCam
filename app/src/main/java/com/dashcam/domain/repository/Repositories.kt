@@ -20,6 +20,8 @@ interface RecordingsRepository {
     fun observeRecordings(): Flow<List<Recording>>
     suspend fun getRecordings(): List<Recording>
     suspend fun createVideoFile(): String
+    /** Path for an event clip around [eventAtMillis]; event clips are locked from the start. */
+    suspend fun createEventFile(eventAtMillis: Long): String
     /** Path for the front camera's video recorded alongside [videoPath]. */
     fun secondaryVideoFile(videoPath: String): String
     suspend fun createPhotoFile(): String
@@ -63,6 +65,8 @@ interface RecorderController {
     fun start()
     fun stop()
     fun toggleLock()
+    /** Marks this moment as an event: locks the clip and saves an event clip around it. */
+    fun markEvent()
     fun setAudioMuted(muted: Boolean)
     suspend fun takePhoto()
 }

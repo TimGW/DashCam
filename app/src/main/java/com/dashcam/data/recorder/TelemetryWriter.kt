@@ -18,13 +18,17 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * Writes per-second subtitles (date, speed, coordinates) as an .srt next to the video and,
- * optionally, a GPX track. Players such as VLC or the in-app player show the .srt automatically.
+ * Writes per-second subtitles (date, plus speed and coordinates when the overlay shows them) as an
+ * .srt next to videos that can't get the burned-in overlay, and optionally a GPX track. Players
+ * such as VLC or the in-app player show the .srt automatically.
  */
 class TelemetryWriter(
     private val videoPath: String,
     private val settings: AppSettings,
     private val location: StateFlow<LocationSample?>,
+    /** Subtitles stand in for the burned-in overlay on videos that can't have it. */
+    private val writeSubtitles: Boolean,
+    private val writeGpx: Boolean,
 ) {
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
     private val gpxTimeFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
@@ -33,8 +37,8 @@ class TelemetryWriter(
 
     suspend fun run() = withContext(Dispatchers.IO) {
         val base = videoPath.substringBeforeLast('.')
-        val srt = if (settings.writeSubtitles) File("$base.srt").bufferedWriter() else null
-        val gpx = if (settings.writeGpx) File("$base.gpx").bufferedWriter() else null
+        val srt = if (writeSubtitles) File("$base.srt").bufferedWriter() else null
+        val gpx = if (writeGpx) File("$base.gpx").bufferedWriter() else null
         val startedAt = System.currentTimeMillis()
         var second = 0
         var lastGpxFix = 0L
@@ -62,11 +66,11 @@ class TelemetryWriter(
     private fun Writer.writeEntry(second: Int, fix: LocationSample?) {
         val parts = buildList {
             add(dateFormat.format(Date()))
-            fix?.speedMetersPerSecond?.let {
+            fix?.speedMetersPerSecond?.takeIf { settings.overlaySpeed }?.let {
                 val unit = if (settings.speedUnit == SpeedUnit.KMH) "km/h" else "mph"
                 add("${it.toSpeed(settings.speedUnit)} $unit")
             }
-            fix?.let { add("%.5f, %.5f".format(Locale.US, it.latitude, it.longitude)) }
+            fix?.takeIf { settings.overlayLocation }?.let { add("%.5f, %.5f".format(Locale.US, it.latitude, it.longitude)) }
         }
         write("${second + 1}\n${srtTime(second)} --> ${srtTime(second + 1)}\n")
         write(parts.joinToString("  ·  "))

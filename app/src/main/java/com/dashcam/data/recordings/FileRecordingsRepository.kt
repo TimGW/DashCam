@@ -23,7 +23,8 @@ import java.util.concurrent.ConcurrentHashMap
  * Stores recordings in the app-specific external storage (no storage permission needed).
  * Lock state is encoded in the file name so it survives reinstalls of the database-free app;
  * sidecar telemetry files (.srt/.gpx) share the video's base name. A front camera video recorded
- * alongside the main one is a separate recording with a "_front" suffix.
+ * alongside the main one is a separate recording with a "_front" suffix; event clips cut around
+ * an impact or marked moment get an "_event" suffix.
  */
 class FileRecordingsRepository(context: Context) : RecordingsRepository {
 
@@ -45,6 +46,12 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
             File(dir, "$candidate.$VIDEO_EXT").exists() || File(dir, "$candidate$LOCKED_SUFFIX.$VIDEO_EXT").exists()
         }
         File(dir, "$base.$VIDEO_EXT").absolutePath
+    }
+
+    override suspend fun createEventFile(eventAtMillis: Long): String = withContext(Dispatchers.IO) {
+        val dir = videoDir.mkdirsIfNeeded()
+        val base = uniqueVideoBase(Date(eventAtMillis)) { File(dir, "$it$EVENT_SUFFIX$LOCKED_SUFFIX.$VIDEO_EXT").exists() }
+        File(dir, "$base$EVENT_SUFFIX$LOCKED_SUFFIX.$VIDEO_EXT").absolutePath
     }
 
     override fun secondaryVideoFile(videoPath: String): String {
@@ -142,7 +149,7 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
     }
 
     private fun parseTimestamp(base: String): Long? {
-        val stamp = base.removePrefix(PREFIX).removeSuffix(LOCKED_SUFFIX).removeSuffix(FRONT_SUFFIX)
+        val stamp = base.removePrefix(PREFIX).removeSuffix(LOCKED_SUFFIX).removeSuffix(FRONT_SUFFIX).removeSuffix(EVENT_SUFFIX)
         val pattern = if (stamp.length == PHOTO_PATTERN.length) PHOTO_PATTERN else VIDEO_PATTERN
         return runCatching { SimpleDateFormat(pattern, Locale.US).parse(stamp)?.time }.getOrNull()
     }
@@ -155,6 +162,7 @@ class FileRecordingsRepository(context: Context) : RecordingsRepository {
         private const val PREFIX = "DC_"
         private const val LOCKED_SUFFIX = "_locked"
         private const val FRONT_SUFFIX = "_front"
+        private const val EVENT_SUFFIX = "_event"
         private const val VIDEO_EXT = "mp4"
         private const val PHOTO_EXT = "jpg"
         private const val VIDEO_PATTERN = "yyyyMMdd_HHmmss"

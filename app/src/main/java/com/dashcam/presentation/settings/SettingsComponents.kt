@@ -11,6 +11,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -116,6 +117,52 @@ fun <T> ChoiceSetting(
             },
             confirmButton = {
                 TextButton(onClick = { open = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
+}
+
+/** A free-text setting edited in a dialog; an empty value shows [emptyLabel]. */
+@Composable
+fun TextSetting(
+    title: String,
+    icon: ImageVector,
+    value: String,
+    emptyLabel: String,
+    onValueChange: (String) -> Unit,
+    enabled: Boolean = true,
+    maxLength: Int = 40,
+) {
+    var editing by remember { mutableStateOf<String?>(null) }
+    ListItem(
+        modifier = Modifier
+            .clickable(enabled = enabled) { editing = value }
+            .alpha(if (enabled) 1f else 0.38f),
+        leadingContent = { Icon(icon, contentDescription = null) },
+        headlineContent = { Text(title) },
+        supportingContent = { Text(value.ifBlank { emptyLabel }) },
+    )
+    editing?.let { text ->
+        AlertDialog(
+            onDismissRequest = { editing = null },
+            title = { Text(title) },
+            text = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { editing = it.take(maxLength) },
+                    singleLine = true,
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onValueChange(text.trim())
+                        editing = null
+                    },
+                ) { Text(stringResource(R.string.action_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { editing = null }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
