@@ -5,6 +5,12 @@ and keeps going in the background or in picture-in-picture while you navigate.
 
 Built with Kotlin, Jetpack Compose, CameraX and Media3.
 
+> [!WARNING]
+> **This project is entirely vibecoded.** All of the code, tests and documentation were written
+> by an AI assistant from prompts. No human has reviewed the code line by line. Expect bugs,
+> and don't rely on it as your only record of an accident or other important event. Review the
+> code yourself before you build on it.
+
 ## Features
 
 **Recording**
