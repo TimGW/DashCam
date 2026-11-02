@@ -11,8 +11,8 @@ presentation  ──▶  domain  ◀──  data
                      use cases)
         ▲                              ▲
         └──────────  service  ─────────┘
-             (foreground recorder, navigation
-              listener, Quick Settings tile)
+             (foreground recorder,
+              Quick Settings tile)
 ```
 
 - **domain** holds plain Kotlin: settings and recording models, repository interfaces
@@ -27,7 +27,7 @@ presentation  ──▶  domain  ◀──  data
 ## Recording
 
 ```
-RecordScreen / tile / navigation
+RecordScreen / tile / notification
         │  RecorderController
         ▼
 ServiceRecorderController ──starts──▶ RecorderService (foreground: camera|microphone|location)
@@ -64,17 +64,18 @@ thread. Some details:
   label into the encoded video. Where the overlay can't be applied (such as the separate
   front-camera file), `TelemetryWriter` writes the same data as `.srt` subtitles instead.
 
-## Starting while navigating
+## Controls while driving
 
-[`NavigationListenerService`](../app/src/main/java/com/dashcam/service/NavigationListenerService.kt)
-is a notification listener. It treats a `CATEGORY_NAVIGATION` notification (Google Maps and
-others), or Waze's ongoing notification, as active navigation and reports it to
-[`NavigationAutoRecorder`](../app/src/main/java/com/dashcam/data/recorder/NavigationAutoRecorder.kt).
+`RecorderService` posts its notification as an Android 16 Live Update: a status bar chip with
+the elapsed time (or "Locked"), pinned at the top of the shade and on the lock screen, with Lock
+and Stop actions. On older Android, or with Live Updates turned off, it's a regular notification
+on a high-importance (but silent) channel, which still ranks it near the top.
 
-Android doesn't let a background app open the camera. So with "Display over other apps" granted,
-DashCam brings itself to the front, starts recording, and then moves to picture-in-picture or the
-background. Without that permission it posts a notification to tap. Only recordings that
-navigation started are stopped when navigation ends, after the configured delay.
+With "Lock by voice" on, the service runs
+[`VoiceCommandListener`](../app/src/main/java/com/dashcam/data/recorder/VoiceCommandListener.kt)
+for the length of the session. It restarts Android's `SpeechRecognizer` (on-device where
+available) after every utterance, and locks the current clip when a short utterance contains
+"lock", "slot" or "vergrendel".
 
 ## Storage and settings
 

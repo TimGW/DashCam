@@ -31,8 +31,8 @@ Built with Kotlin, Jetpack Compose, CameraX and Media3.
 - Event clips: 30 or 60 seconds around the event, cut from the loop clips without re-encoding
 
 **Hands-free**
-- Start recording automatically when Google Maps navigates or Waze is open, and stop a set time
-  after navigation ends
+- Live Update (Android 16+): recording time in the status bar, Lock and Stop at the top of the shade
+- Lock the current clip by voice ("lock", "slot", "vergrendel")
 - Start on launch, Quick Settings tile, picture-in-picture viewfinder
 - Foreground service that keeps recording with the screen off, and recovers when the camera is
   briefly unavailable
@@ -68,11 +68,9 @@ automatically; on the command line, set `sdk.dir` in `local.properties` or `ANDR
 | Permission | Used for | Required |
 | --- | --- | --- |
 | Camera | Recording | Yes |
-| Microphone | Audio in recordings | No |
+| Microphone | Audio in recordings, lock by voice | No |
 | Location | Speed, coordinates and GPX tracks | No |
-| Notifications | Recording status notification | No |
-| Notification access | Noticing when navigation starts | Only for "Record when navigating" |
-| Display over other apps | Starting automatically when navigation starts, without a tap | No |
+| Notifications | Recording notification with Lock and Stop | No |
 
 Excluding DashCam from battery optimization (Settings → Behavior) keeps long background
 recordings from being stopped by Android.
@@ -105,7 +103,7 @@ Uninstalling the app deletes this folder. Use **Save to gallery** to keep a copy
 app/src/main/java/com/dashcam/
 ├── domain/        models, repository interfaces and use cases (no Android dependencies)
 ├── data/          CameraX engine, recording session, sensors, location, storage, settings
-├── service/       foreground recorder, navigation listener, Quick Settings tile
+├── service/       foreground recorder, Quick Settings tile
 ├── presentation/  Compose screens and view models
 └── di/            AppContainer, the manual dependency graph
 ```

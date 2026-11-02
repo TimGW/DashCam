@@ -39,11 +39,9 @@ data class PhotoDestination(val path: String)
 fun DashCamNavHost(
     startRecordingRequest: Boolean,
     onStartRecordingHandled: () -> Unit,
-    minimizeAfterStart: Boolean,
-    onMinimized: (enteringPictureInPicture: Boolean) -> Unit,
 ) {
     val navController = rememberNavController()
-    // Recording starts from the record screen, so a start request (tile, navigation) returns there.
+    // Recording starts from the record screen, so a start request (tile, notification) returns there.
     LaunchedEffect(startRecordingRequest) {
         if (startRecordingRequest) navController.popBackStack(RecordDestination, inclusive = false)
     }
@@ -59,8 +57,6 @@ fun DashCamNavHost(
                 onOpenSettings = { navController.navigate(SettingsDestination) },
                 startRecordingRequest = startRecordingRequest,
                 onStartRecordingHandled = onStartRecordingHandled,
-                minimizeAfterStart = minimizeAfterStart,
-                onMinimized = onMinimized,
             )
         }
         composable<RecordingsDestination> {

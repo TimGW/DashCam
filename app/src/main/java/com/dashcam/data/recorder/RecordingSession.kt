@@ -153,6 +153,13 @@ class RecordingSession(
         eventLog.log(if (lockCurrent) "Clip locked" else "Clip unlocked")
     }
 
+    /** Locks the current clip (a voice command); unlike [toggleLock], repeating it never unlocks. */
+    fun lock() {
+        if (_state.value !is RecorderState.Recording) return
+        if (!lockCurrent) toggleLock()
+        haptics.alert()
+    }
+
     fun setAudioMuted(muted: Boolean) {
         this.muted = muted
         camera.setMuted(muted)
